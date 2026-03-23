@@ -3,6 +3,8 @@
 ## Tests use small synthetic tibbles so they run without any external data
 ## dependencies and remain fast.
 
+library(tibble)
+
 # ---------------------------------------------------------------------------
 # Shared fixtures
 # ---------------------------------------------------------------------------
