@@ -1,2 +1,8 @@
+^renv$
+^renv\.lock$
 ^cgjrdata\.Rproj$
 ^\.Rproj\.user$
+^LICENSE\.md$
+^data-raw$
+^analysis$
+^copilot_logs$
