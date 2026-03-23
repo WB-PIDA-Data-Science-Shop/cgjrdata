@@ -6,3 +6,5 @@
 ^data-raw$
 ^analysis$
 ^copilot_logs$
+^\.github$
+^README\.Rmd$
