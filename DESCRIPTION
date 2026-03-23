@@ -2,10 +2,10 @@ Package: cgjrdata
 Title: Data Preparation for the Country Jobs and Growth Report
 Version: 0.0.0.9000
 Authors@R: 
-    person("WB PIDA Data Science Shop", , , "wb-pida@worldbank.org", role = c("aut", "cre"))
+    person("Ifeanyi", "Edochie", email = "iedochie@worldbank.org", role = c("aut", "cre"))
 Description: Pulls, processes and packages the 135 indicators that make up the
     World Bank Country Jobs and Growth Report (CGJR) analytical framework.
-    Provides four lazyloaded objects for use by the cgjrapp Shiny dashboard:
+    Provides four lazyloaded objects for use by the cgjrapp Shiny dashboard including,
     rawdata_list (raw source panels), ctfdata_list (Closeness-to-Frontier
     dynamic scores with subcluster score columns), metadata_tbl (variable
     catalogue), and institutional_averages_tbl (subcluster, cluster and

@@ -1,0 +1,2 @@
+This file tells r-lib/actions/setup-r-dependencies to use pak/DESCRIPTION
+instead of renv for CI dependency installation.
