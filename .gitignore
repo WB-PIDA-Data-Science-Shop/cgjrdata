@@ -4,3 +4,8 @@
 .httr-oauth
 .DS_Store
 .quarto
+
+# renv local library — never commit installed packages
+renv/library/
+renv/staging/
+

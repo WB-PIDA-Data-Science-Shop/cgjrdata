@@ -7,13 +7,14 @@ on:
 
 name: test-coverage.yaml
 
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
   test-coverage:
     runs-on: ubuntu-latest
     env:
-      GITHUB_PAT: ${{ secrets.CGJR_GITHUB_PAT }}
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
@@ -23,9 +24,17 @@ jobs:
           use-public-rspm: true
 
       - uses: r-lib/actions/setup-r-dependencies@v2
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
         with:
           extra-packages: any::covr, any::xml2
           needs: coverage
+          # Bypass renv lockfile detection — install from DESCRIPTION directly
+          packages: |
+            deps::.
+            any::covr
+            any::xml2
+            any::sessioninfo
 
       - name: Test coverage
         run: |
@@ -40,7 +49,6 @@ jobs:
 
       - uses: codecov/codecov-action@v5
         with:
-          # Fail if error if not on PR, or if on PR and token is given
           fail_ci_if_error: ${{ github.event_name != 'pull_request' || secrets.CODECOV_TOKEN }}
           files: ./cobertura.xml
           plugins: noop

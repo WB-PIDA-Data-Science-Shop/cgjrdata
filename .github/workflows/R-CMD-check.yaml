@@ -7,7 +7,8 @@ on:
 
 name: R-CMD-check.yaml
 
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
   R-CMD-check:
@@ -21,12 +22,12 @@ jobs:
         config:
           - {os: macos-latest,   r: 'release'}
           - {os: windows-latest, r: 'release'}
-          - {os: ubuntu-latest,   r: 'devel', http-user-agent: 'release'}
-          - {os: ubuntu-latest,   r: 'release'}
-          - {os: ubuntu-latest,   r: 'oldrel-1'}
+          - {os: ubuntu-latest,  r: 'devel', http-user-agent: 'release'}
+          - {os: ubuntu-latest,  r: 'release'}
+          - {os: ubuntu-latest,  r: 'oldrel-1'}
 
     env:
-      GITHUB_PAT: ${{ secrets.CGJR_GITHUB_PAT }}
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       R_KEEP_PKG_SOURCE: yes
 
     steps:
@@ -41,9 +42,16 @@ jobs:
           use-public-rspm: true
 
       - uses: r-lib/actions/setup-r-dependencies@v2
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
         with:
           extra-packages: any::rcmdcheck
           needs: check
+          # Bypass renv lockfile detection — install from DESCRIPTION directly
+          packages: |
+            deps::.
+            any::rcmdcheck
+            any::sessioninfo
 
       - uses: r-lib/actions/check-r-package@v2
         with:
