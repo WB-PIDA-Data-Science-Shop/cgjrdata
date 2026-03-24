@@ -2,7 +2,7 @@
 ################### COMBINE OUTPUTS INTO LAZYLOADED LISTS ###################
 ##############################################################################
 # Reads all .rds files written by the data-raw/source scripts and assembles
-# four package-level objects:
+# eight package-level objects:
 #
 #   rawdata_list             — nested list of raw source panels, keyed by
 #                              cluster / subcluster
@@ -13,6 +13,10 @@
 #                              subclusters row-bound)
 #   institutional_averages_tbl — wide tibble of subcluster, cluster and
 #                              overall CTF scores per country_code × year
+#   regionctf_list           — ctfdata_list aggregated to WB region × year
+#   incomectf_list           — ctfdata_list aggregated to income group × year
+#   regionrawdata_list       — rawdata_list aggregated to WB region × year
+#   incomerawdata_list       — rawdata_list aggregated to income group × year
 #
 # Run this script after 00-build_all_datasets.r has populated data-raw/output/.
 ##############################################################################
@@ -126,3 +130,28 @@ usethis::use_data(rawdata_list,             overwrite = TRUE)
 usethis::use_data(ctfdata_list,             overwrite = TRUE)
 usethis::use_data(metadata_tbl,             overwrite = TRUE)
 usethis::use_data(institutional_averages_tbl, overwrite = TRUE)
+
+# ============================================================================
+# 7.  Region and income-group aggregated CTF lists
+# ============================================================================
+# For each subcluster tibble:
+#   - WB aggregate codes (WLD, SSA, etc.) are dropped (no match in wbcountries)
+#   - Indicator columns are averaged across countries within group × year
+#   - score is recomputed as rowMeans of the averaged indicator columns
+#   - var_count / nonna_count are dropped (not meaningful at group level)
+regionctf_list  <- aggregate_data_list(ctfdata_list, "region",       wbcountries)
+incomectf_list  <- aggregate_data_list(ctfdata_list, "income_group", wbcountries)
+
+# ============================================================================
+# 8.  Region and income-group aggregated raw data lists
+# ============================================================================
+regionrawdata_list  <- aggregate_data_list(rawdata_list, "region",       wbcountries)
+incomerawdata_list  <- aggregate_data_list(rawdata_list, "income_group", wbcountries)
+
+# ============================================================================
+# 9.  Save group-aggregated lists
+# ============================================================================
+usethis::use_data(regionctf_list,     overwrite = TRUE)
+usethis::use_data(incomectf_list,     overwrite = TRUE)
+usethis::use_data(regionrawdata_list, overwrite = TRUE)
+usethis::use_data(incomerawdata_list, overwrite = TRUE)

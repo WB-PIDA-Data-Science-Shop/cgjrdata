@@ -178,3 +178,190 @@
 #'
 #' @source Derived from `ctfdata_list` via [compute_cluster_averages()].
 "institutional_averages_tbl"
+
+#' World Bank Country Classifications
+#'
+#' A dataset containing the World Bank's official country classifications including
+#' economy names, country codes, income groups, lending categories, and regional
+#' assignments. This dataset uses the World Bank's updated regional classification
+#' that splits Sub-Saharan Africa into Eastern/Southern and Western/Central regions.
+#'
+#' @format A tibble with 218 rows and 6 variables:
+#' \describe{
+#' \item{economy}{Full name of the economy or territory.}
+#' \item{country_code}{Three-letter ISO3 country code.}
+#' \item{income_group}{World Bank income classification: "Low income",
+#' "Lower middle income", "Upper middle income", or "High income".}
+#' \item{lending_category}{World Bank lending category: "IDA" (International Development Association),
+#' "IBRD" (International Bank for Reconstruction and Development), "Blend" (IDA and IBRD),
+#' or \code{NA} for high-income countries not eligible for lending.}
+#' \item{region_code}{Three-letter code for the World Bank region:
+#' \itemize{
+#'   \item AFE - Africa Eastern and Southern
+#'   \item AFW - Africa Western and Central
+#'   \item EAP - East Asia & Pacific
+#'   \item ECA - Europe & Central Asia
+#'   \item LAC - Latin America & Caribbean
+#'   \item MENAAP - Middle East, North Africa, Afghanistan & Pakistan
+#'   \item SAR - South Asia
+#'   \item NAC - North America
+#' }}
+#' \item{region}{Full name of the World Bank region corresponding to the region_code.}
+#' }
+#'
+#' @details
+#' This dataset reflects the World Bank's current operational classification of countries
+#' and territories. The regional classification follows the World Bank's updated structure
+#' that divides Sub-Saharan Africa into two regions: Africa Eastern and Southern (AFE)
+#' and Africa Western and Central (AFW). This provides more granular regional analysis
+#' for governance and development indicators.
+#'
+#' The lending categories reflect eligibility for different World Bank financing instruments:
+#' \itemize{
+#'   \item IDA countries are eligible for concessional financing
+#'   \item IBRD countries can borrow at market-based terms
+#'   \item Blend countries are eligible for both IDA and IBRD financing
+#'   \item High-income countries typically have \code{NA} for lending category
+#' }
+#'
+#' @source
+#' World Bank Country and Lending Groups Classification (October 2025).
+#' File: CLASS_2025_10_07.xlsx
+#'
+#' @examples
+#' data(wbcountries)
+#' # View all Africa Eastern and Southern countries
+#' dplyr::filter(wbcountries, region_code == "AFE")
+#'
+#' # View all low-income IDA countries
+#' dplyr::filter(wbcountries, income_group == "Low income", lending_category == "IDA")
+#'
+#' # Count countries by region
+#' dplyr::count(wbcountries, region)
+"wbcountries"
+
+
+# ============================================================================
+# Group-aggregated lists
+# ============================================================================
+
+#' CTF dynamic scores aggregated to World Bank region
+#'
+#' @description
+#' A nested list with the same cluster/subcluster structure as `ctfdata_list`
+#' (`list[[cluster]][[subcluster]]`), but with country-level rows replaced by
+#' World Bank region-level averages.
+#'
+#' **Aggregation logic (per subcluster):**
+#' 1. World Bank classification columns (`region`, `region_code`) are joined
+#'    onto `ctfdata_list` via `country_code` using [aggregate_data_list()].
+#' 2. Rows for WB aggregate codes (e.g. `"WLD"`, `"SSA"`) that have no match
+#'    in `wbcountries` are dropped.
+#' 3. For each `region × year` group, every CTF indicator column is averaged
+#'    across countries (`na.rm = TRUE`).
+#' 4. `score` is recomputed as the row mean of the resulting averaged indicator
+#'    columns (`na.rm = TRUE`); `NaN` is coerced to `NA`.
+#' 5. `var_count` and `nonna_count` are dropped (not meaningful at group level).
+#'
+#' @format A nested list `[[cluster]][[subcluster]]`. Each leaf tibble contains:
+#' \describe{
+#'   \item{`region`}{Full World Bank region name.}
+#'   \item{`region_code`}{Three-letter WB region code (e.g. `"AFE"`, `"ECA"`).}
+#'   \item{`year`}{Calendar year.}
+#'   \item{`<indicator columns>`}{Region-mean of each CTF indicator
+#'     (`na.rm = TRUE`).}
+#'   \item{`score`}{Row mean of the region-averaged indicator columns
+#'     (`na.rm = TRUE`); `NA` when all indicators are `NA`.}
+#' }
+#'
+#' @seealso `ctfdata_list`, `wbcountries`, [aggregate_data_list()]
+#'
+#' @source Derived from `ctfdata_list` and `wbcountries` via
+#'   [aggregate_data_list()].
+"regionctf_list"
+
+
+#' CTF dynamic scores aggregated to World Bank income group
+#'
+#' @description
+#' A nested list with the same cluster/subcluster structure as `ctfdata_list`,
+#' but with country-level rows replaced by World Bank income-group averages.
+#'
+#' **Aggregation logic:** identical to `regionctf_list` but grouped by
+#' `income_group` instead of `region`. See [aggregate_data_list()] for full
+#' details.
+#'
+#' @format A nested list `[[cluster]][[subcluster]]`. Each leaf tibble contains:
+#' \describe{
+#'   \item{`income_group`}{World Bank income classification: `"Low income"`,
+#'     `"Lower middle income"`, `"Upper middle income"`, or `"High income"`.}
+#'   \item{`year`}{Calendar year.}
+#'   \item{`<indicator columns>`}{Income-group mean of each CTF indicator
+#'     (`na.rm = TRUE`).}
+#'   \item{`score`}{Row mean of the income-group-averaged indicator columns
+#'     (`na.rm = TRUE`); `NA` when all indicators are `NA`.}
+#' }
+#'
+#' @seealso `ctfdata_list`, `wbcountries`, [aggregate_data_list()]
+#'
+#' @source Derived from `ctfdata_list` and `wbcountries` via
+#'   [aggregate_data_list()].
+"incomectf_list"
+
+
+#' Raw indicator data aggregated to World Bank region
+#'
+#' @description
+#' A nested list with the same cluster/subcluster structure as `rawdata_list`,
+#' but with country-level rows replaced by World Bank region-level averages.
+#'
+#' **Aggregation logic:** identical to `regionctf_list` but applied to
+#' `rawdata_list` (raw source values rather than CTF scores). Because
+#' `rawdata_list` leaves do not carry `score`/`var_count`/`nonna_count`
+#' columns, all numeric columns are averaged and `score` is freshly computed
+#' as the row mean of those averages. See [aggregate_data_list()] for full
+#' details.
+#'
+#' @format A nested list `[[cluster]][[subcluster]]`. Each leaf tibble contains:
+#' \describe{
+#'   \item{`region`}{Full World Bank region name.}
+#'   \item{`region_code`}{Three-letter WB region code.}
+#'   \item{`year`}{Calendar year.}
+#'   \item{`<indicator columns>`}{Region-mean of each raw indicator
+#'     (`na.rm = TRUE`).}
+#'   \item{`score`}{Row mean of the region-averaged indicator columns
+#'     (`na.rm = TRUE`); `NA` when all indicators are `NA`.}
+#' }
+#'
+#' @seealso `rawdata_list`, `wbcountries`, [aggregate_data_list()]
+#'
+#' @source Derived from `rawdata_list` and `wbcountries` via
+#'   [aggregate_data_list()].
+"regionrawdata_list"
+
+
+#' Raw indicator data aggregated to World Bank income group
+#'
+#' @description
+#' A nested list with the same cluster/subcluster structure as `rawdata_list`,
+#' but with country-level rows replaced by World Bank income-group averages.
+#'
+#' **Aggregation logic:** identical to `incomerawdata_list` but applied to
+#' `rawdata_list`. See [aggregate_data_list()] for full details.
+#'
+#' @format A nested list `[[cluster]][[subcluster]]`. Each leaf tibble contains:
+#' \describe{
+#'   \item{`income_group`}{World Bank income classification: `"Low income"`,
+#'     `"Lower middle income"`, `"Upper middle income"`, or `"High income"`.}
+#'   \item{`year`}{Calendar year.}
+#'   \item{`<indicator columns>`}{Income-group mean of each raw indicator
+#'     (`na.rm = TRUE`).}
+#'   \item{`score`}{Row mean of the income-group-averaged indicator columns
+#'     (`na.rm = TRUE`); `NA` when all indicators are `NA`.}
+#' }
+#'
+#' @seealso `rawdata_list`, `wbcountries`, [aggregate_data_list()]
+#'
+#' @source Derived from `rawdata_list` and `wbcountries` via
+#'   [aggregate_data_list()].
+"incomerawdata_list"
