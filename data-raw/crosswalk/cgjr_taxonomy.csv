@@ -1,0 +1,15 @@
+cluster,cluster_num,cluster_name,subcluster,subcluster_num,subcluster_name,sub_subcluster,sub_subcluster_num,sub_subcluster_name
+institutional_environment,1,Institutional Environment,degree_of_integrity,1,Degree of Integrity,,,
+institutional_environment,1,Institutional Environment,transparency_and_accountability,2,Transparency and Accountability,,,
+institutional_environment,1,Institutional Environment,justice_and_rule_of_law,3,Justice and Rule of Law,,,
+core_governance_functions,2,Efficiency and Effectiveness of Core Governance Functions,public_financial_management,1,Public Financial Management,budget_cycle_and_fiscal_planning,1,Budget Cycle and Fiscal Planning
+core_governance_functions,2,Efficiency and Effectiveness of Core Governance Functions,public_financial_management,1,Public Financial Management,domestic_revenue_mobilization,2,Domestic Revenue Mobilization
+core_governance_functions,2,Efficiency and Effectiveness of Core Governance Functions,public_financial_management,1,Public Financial Management,public_procurement,3,Public Procurement
+core_governance_functions,2,Efficiency and Effectiveness of Core Governance Functions,public_financial_management,1,Public Financial Management,public_investment_management,4,Public Investment Management (PIM)
+core_governance_functions,2,Efficiency and Effectiveness of Core Governance Functions,public_sector_hrm,2,Public Sector HRM,,,
+core_governance_functions,2,Efficiency and Effectiveness of Core Governance Functions,digital_and_data,3,Digital and Data,,,
+beyond_core_governance_functions,3,Efficiency and Effectiveness beyond Core Governance Functions,market_regulatory_institutions,1,Market Regulatory Institutions,,,
+beyond_core_governance_functions,3,Efficiency and Effectiveness beyond Core Governance Functions,service_delivery,2,Service Delivery,,,
+beyond_core_governance_functions,3,Efficiency and Effectiveness beyond Core Governance Functions,soe_governance,3,State-Owned Enterprises Governance,,,
+context,4,Context,political_institutions_and_social_cohesion,1,Political Institutions and Social Cohesion,,,
+context,4,Context,social_cohesion_norms_and_cooperation,2,"Social Cohesion, Norms and Cooperation",,,

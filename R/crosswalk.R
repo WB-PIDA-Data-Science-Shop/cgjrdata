@@ -178,6 +178,132 @@ validate_crosswalk <- function(crosswalk,
 
 
 # ---------------------------------------------------------------------------
+# check_crosswalk_schema()
+# ---------------------------------------------------------------------------
+
+#' Check the structural integrity of the CGJR crosswalk and taxonomy
+#'
+#' A `cliaretl`-free sanity check on the two hand-edited tables (`cgjr_crosswalk`
+#' and `cgjr_taxonomy`, read from `data-raw/crosswalk/*.csv` at build time).
+#' Run this immediately after reading the CSVs and before
+#' [validate_crosswalk()]: a malformed CSV can still parse into a well-typed
+#' data frame, so the shape has to be asserted explicitly.
+#'
+#' All violations are collected and reported together in a single `stop()`.
+#' The checks are:
+#'
+#' \enumerate{
+#'   \item Both tables carry their required columns.
+#'   \item No `NA` in the crosswalk's structural columns (`cluster`,
+#'     `subcluster`, `indicator_num`, `indicator`, `status`).
+#'   \item `status` is one of `"ok"`, `"verify"`, `"unresolved"`.
+#'   \item `status == "unresolved"` if and only if `variable` is `NA`.
+#'   \item Every `(cluster, subcluster, sub_subcluster)` combination in the
+#'     crosswalk exists as a leaf row in the taxonomy.
+#'   \item `indicator_num` is unique within each leaf.
+#'   \item Each non-`NA` `variable` appears at most once within a leaf.
+#'   \item Taxonomy leaf keys are unique.
+#' }
+#'
+#' @param crosswalk The indicator crosswalk (e.g. `cgjr_crosswalk`).
+#' @param taxonomy The leaf-node taxonomy (e.g. `cgjr_taxonomy`).
+#'
+#' @return Invisibly, `crosswalk`. Errors on the first batch of violations
+#'   found.
+#'
+#' @seealso [validate_crosswalk()]
+#'
+#' @examples
+#' \dontrun{
+#' devtools::load_all()
+#' check_crosswalk_schema(cgjr_crosswalk, cgjr_taxonomy)
+#' }
+#'
+#' @export
+check_crosswalk_schema <- function(crosswalk, taxonomy) {
+  stopifnot(is.data.frame(crosswalk), is.data.frame(taxonomy))
+
+  problems <- character(0)
+  add <- function(...) problems <<- c(problems, paste0(...))
+
+  xw_req <- c("cluster", "subcluster", "sub_subcluster", "indicator_num",
+              "indicator", "source", "variable", "status", "note")
+  tx_req <- c("cluster", "cluster_num", "cluster_name",
+              "subcluster", "subcluster_num", "subcluster_name",
+              "sub_subcluster", "sub_subcluster_num", "sub_subcluster_name")
+
+  xw_missing <- setdiff(xw_req, names(crosswalk))
+  tx_missing <- setdiff(tx_req, names(taxonomy))
+  if (length(xw_missing)) add("crosswalk is missing column(s): ", paste(xw_missing, collapse = ", "))
+  if (length(tx_missing)) add("taxonomy is missing column(s): ",  paste(tx_missing, collapse = ", "))
+
+  # Everything below assumes the required columns exist.
+  if (length(xw_missing) == 0L) {
+    for (col in c("cluster", "subcluster", "indicator_num", "indicator", "status")) {
+      n_na <- sum(is.na(crosswalk[[col]]))
+      if (n_na > 0L) add(n_na, " crosswalk row(s) have NA `", col, "`")
+    }
+
+    bad_status <- setdiff(stats::na.omit(unique(crosswalk$status)),
+                          c("ok", "verify", "unresolved"))
+    if (length(bad_status)) {
+      add("crosswalk `status` has unexpected value(s): ", paste(bad_status, collapse = ", "))
+    }
+
+    unresolved   <- !is.na(crosswalk$status) & crosswalk$status == "unresolved"
+    no_variable  <- is.na(crosswalk$variable)
+    if (any(unresolved & !no_variable)) {
+      add(sum(unresolved & !no_variable),
+          " crosswalk row(s) have status 'unresolved' but a non-NA variable")
+    }
+    if (any(!unresolved & no_variable)) {
+      add(sum(!unresolved & no_variable),
+          " crosswalk row(s) have a NA variable but status is not 'unresolved'")
+    }
+
+    leaf_key <- function(df) {
+      paste(df$cluster, df$subcluster,
+            ifelse(is.na(df$sub_subcluster), "", df$sub_subcluster),
+            sep = "\r")
+    }
+
+    if (length(tx_missing) == 0L) {
+      orphans <- setdiff(unique(leaf_key(crosswalk)), unique(leaf_key(taxonomy)))
+      if (length(orphans)) {
+        add(length(orphans), " crosswalk leaf path(s) not found in taxonomy: ",
+            paste(gsub("\r", " > ", orphans), collapse = "; "))
+      }
+      dup_tx <- leaf_key(taxonomy)[duplicated(leaf_key(taxonomy))]
+      if (length(dup_tx)) {
+        add("taxonomy has duplicate leaf key(s): ",
+            paste(unique(gsub("\r", " > ", dup_tx)), collapse = "; "))
+      }
+    }
+
+    key <- leaf_key(crosswalk)
+    dup_num <- tapply(crosswalk$indicator_num, key,
+                      function(x) any(duplicated(x)))
+    if (any(unlist(dup_num))) {
+      add("duplicate indicator_num within leaf(s): ",
+          paste(gsub("\r", " > ", names(which(unlist(dup_num)))), collapse = "; "))
+    }
+    dup_var <- tapply(crosswalk$variable, key,
+                      function(x) { x <- x[!is.na(x)]; any(duplicated(x)) })
+    if (any(unlist(dup_var))) {
+      add("duplicate variable within leaf(s): ",
+          paste(gsub("\r", " > ", names(which(unlist(dup_var)))), collapse = "; "))
+    }
+  }
+
+  if (length(problems)) {
+    stop("check_crosswalk_schema(): ", length(problems), " problem(s):\n",
+         paste0("  - ", problems, collapse = "\n"), call. = FALSE)
+  }
+  invisible(crosswalk)
+}
+
+
+# ---------------------------------------------------------------------------
 # build_ctfdata_list()
 # ---------------------------------------------------------------------------
 

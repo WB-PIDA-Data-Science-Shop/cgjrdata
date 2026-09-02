@@ -14,6 +14,8 @@ A tibble with one row per crosswalk row. Key columns:
 \item{\code{source}}{Source as stated in the taxonomy; \code{source_cliar} is the
 catalogue's own source string.}
 \item{\code{variable}}{Resolved \code{cliaretl} code, or \code{NA}.}
+\item{\code{status}}{Editor's judgement from the crosswalk: \code{"ok"} /
+\code{"verify"} / \code{"unresolved"}.}
 \item{\code{note}}{Resolution caveat from the crosswalk.}
 \item{\code{var_name}, \code{description}, \code{description_short}, \code{family_name},
 \code{etl_source}, \code{benchmarked_ctf}, \code{benchmark_dynamic_indicator},

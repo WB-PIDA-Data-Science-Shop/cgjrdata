@@ -14,8 +14,12 @@ Public Financial Management.}
 \item{\code{indicator}}{Human-readable indicator name as specified by the team.}
 \item{\code{source}}{Data source as stated in the taxonomy specification.}
 \item{\code{variable}}{Resolved \code{cliaretl} variable code, or \code{NA} if unresolved.}
-\item{\code{note}}{Free-text caveat: how the code was resolved, a \verb{[VERIFY]}
-still outstanding, or why a row is unresolved.}
+\item{\code{status}}{Editor's judgement: \code{"ok"} (code confirmed), \code{"verify"}
+(code assigned but a caveat in \code{note} remains), or \code{"unresolved"} (no
+code — \code{variable} is \code{NA}). Distinct from
+\code{validate_crosswalk()$check}, which is computed against \code{cliaretl}.}
+\item{\code{note}}{Free-text caveat: how the code was resolved, an outstanding
+check, or why a row is unresolved.}
 }
 }
 \source{
@@ -26,13 +30,15 @@ cgjr_crosswalk
 }
 \description{
 The single source of truth for the CGJR taxonomy: one row per
-(indicator × leaf node) assignment. Replaces the retired per-subcluster
-build scripts. Every \code{variable} is resolved against live
-\link[cliaretl:db_variables_final]{cliaretl::db_variables_final} text — codes are never guessed. Indicators
-the team specified but for which no \code{cliaretl} code could be confirmed are
-kept with \code{variable = NA} so the table stays a complete record of the
-taxonomy; the build functions drop these rows and \code{\link[=validate_crosswalk]{validate_crosswalk()}}
-reports them.
+(indicator × leaf node) assignment. Maintained as a human-editable CSV,
+\code{data-raw/crosswalk/cgjr_crosswalk.csv} (edit in a spreadsheet; the build
+reads it, checks its structure with \code{\link[=check_crosswalk_schema]{check_crosswalk_schema()}}, and
+validates the codes with \code{\link[=validate_crosswalk]{validate_crosswalk()}}). Every \code{variable} is
+resolved against live \link[cliaretl:db_variables_final]{cliaretl::db_variables_final} text — codes are never
+guessed. Indicators the team specified but for which no \code{cliaretl} code
+could be confirmed are kept with \code{variable = NA} so the table stays a
+complete record of the taxonomy; the build functions drop these rows and
+\code{\link[=validate_crosswalk]{validate_crosswalk()}} reports them.
 
 An indicator may appear under a subcluster that is \strong{not} its \code{cliaretl}
 \code{family_name} (e.g. the Digital Citizen Engagement Index sits in

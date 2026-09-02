@@ -37,6 +37,7 @@ make_xw <- function() {
     indicator      = c("ok", "fa no", "dyn no", "not in cat", "unresolved"),
     source         = "src",
     variable       = c("ok_var", "fa_no_var", "dyn_no_var", "missing_var", NA),
+    status         = c("ok", "ok", "ok", "verify", "unresolved"),
     note           = NA_character_
   )
 }
@@ -79,6 +80,62 @@ test_that("validate_crosswalk errors on missing required columns", {
     validate_crosswalk(tibble::tibble(variable = "x")),
     regexp = "missing required column"
   )
+})
+
+# ---------------------------------------------------------------------------
+# check_crosswalk_schema()
+# ---------------------------------------------------------------------------
+
+test_that("check_crosswalk_schema passes a well-formed crosswalk/taxonomy pair", {
+  expect_invisible(check_crosswalk_schema(make_xw(), make_tax()))
+  expect_identical(check_crosswalk_schema(make_xw(), make_tax()), make_xw())
+})
+
+test_that("check_crosswalk_schema flags a leaf path missing from the taxonomy", {
+  xw <- make_xw()
+  xw$subcluster[1] <- "s_typo"
+  expect_error(check_crosswalk_schema(xw, make_tax()),
+               regexp = "not found in taxonomy")
+})
+
+test_that("check_crosswalk_schema flags status / variable disagreement", {
+  xw <- make_xw()
+  xw$status[5] <- "ok"          # row 5 has NA variable
+  expect_error(check_crosswalk_schema(xw, make_tax()),
+               regexp = "NA variable but status is not 'unresolved'")
+})
+
+test_that("check_crosswalk_schema flags a bad status value", {
+  xw <- make_xw()
+  xw$status[1] <- "maybe"
+  expect_error(check_crosswalk_schema(xw, make_tax()),
+               regexp = "unexpected value")
+})
+
+test_that("check_crosswalk_schema flags duplicate indicator_num within a leaf", {
+  xw <- make_xw()
+  xw$indicator_num[2] <- 1L     # rows 1 and 2 are both s1 / indicator_num 1
+  expect_error(check_crosswalk_schema(xw, make_tax()),
+               regexp = "duplicate indicator_num")
+})
+
+test_that("check_crosswalk_schema flags a duplicate variable within a leaf", {
+  xw <- make_xw()
+  xw$variable[2] <- "ok_var"    # same as row 1, same leaf
+  expect_error(check_crosswalk_schema(xw, make_tax()),
+               regexp = "duplicate variable")
+})
+
+test_that("check_crosswalk_schema reports missing columns", {
+  expect_error(
+    check_crosswalk_schema(tibble::tibble(cluster = "c1"), make_tax()),
+    regexp = "missing column"
+  )
+})
+
+test_that("the shipped cgjr_crosswalk / cgjr_taxonomy pass the schema check", {
+  skip_if_not(exists("cgjr_crosswalk") && exists("cgjr_taxonomy"))
+  expect_invisible(check_crosswalk_schema(cgjr_crosswalk, cgjr_taxonomy))
 })
 
 # ---------------------------------------------------------------------------
@@ -126,6 +183,28 @@ test_that("build_ctfdata_list supports a three-level (sub-subcluster) branch", {
 # ---------------------------------------------------------------------------
 # Real crosswalk (needs cliaretl + built data)
 # ---------------------------------------------------------------------------
+
+test_that("the shipped .rda objects match their source CSVs", {
+  csv_dir <- testthat::test_path("..", "..", "data-raw", "crosswalk")
+  skip_if_not(dir.exists(csv_dir))
+
+  xw_csv <- utils::read.csv(
+    file.path(csv_dir, "cgjr_crosswalk.csv"),
+    colClasses = "character", na.strings = "", check.names = FALSE
+  )
+  tx_csv <- utils::read.csv(
+    file.path(csv_dir, "cgjr_taxonomy.csv"),
+    colClasses = "character", na.strings = "", check.names = FALSE
+  )
+  expect_equal(nrow(xw_csv), nrow(cgjr_crosswalk))
+  expect_equal(nrow(tx_csv), nrow(cgjr_taxonomy))
+  expect_setequal(names(xw_csv), names(cgjr_crosswalk))
+  expect_setequal(names(tx_csv), names(cgjr_taxonomy))
+  expect_equal(sort(stats::na.omit(xw_csv$variable)),
+               sort(stats::na.omit(cgjr_crosswalk$variable)))
+  # the CSV is the source of truth for status
+  expect_equal(xw_csv$status, cgjr_crosswalk$status)
+})
 
 test_that("the shipped cgjr_crosswalk resolves every non-NA variable to cliaretl", {
   skip_if_not_installed("cliaretl")

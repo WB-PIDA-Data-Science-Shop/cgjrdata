@@ -40,13 +40,15 @@
 #'
 #' @description
 #' The single source of truth for the CGJR taxonomy: one row per
-#' (indicator × leaf node) assignment. Replaces the retired per-subcluster
-#' build scripts. Every `variable` is resolved against live
-#' [cliaretl::db_variables_final] text — codes are never guessed. Indicators
-#' the team specified but for which no `cliaretl` code could be confirmed are
-#' kept with `variable = NA` so the table stays a complete record of the
-#' taxonomy; the build functions drop these rows and [validate_crosswalk()]
-#' reports them.
+#' (indicator × leaf node) assignment. Maintained as a human-editable CSV,
+#' `data-raw/crosswalk/cgjr_crosswalk.csv` (edit in a spreadsheet; the build
+#' reads it, checks its structure with [check_crosswalk_schema()], and
+#' validates the codes with [validate_crosswalk()]). Every `variable` is
+#' resolved against live [cliaretl::db_variables_final] text — codes are never
+#' guessed. Indicators the team specified but for which no `cliaretl` code
+#' could be confirmed are kept with `variable = NA` so the table stays a
+#' complete record of the taxonomy; the build functions drop these rows and
+#' [validate_crosswalk()] reports them.
 #'
 #' An indicator may appear under a subcluster that is **not** its `cliaretl`
 #' `family_name` (e.g. the Digital Citizen Engagement Index sits in
@@ -62,8 +64,12 @@
 #'   \item{`indicator`}{Human-readable indicator name as specified by the team.}
 #'   \item{`source`}{Data source as stated in the taxonomy specification.}
 #'   \item{`variable`}{Resolved `cliaretl` variable code, or `NA` if unresolved.}
-#'   \item{`note`}{Free-text caveat: how the code was resolved, a `[VERIFY]`
-#'     still outstanding, or why a row is unresolved.}
+#'   \item{`status`}{Editor's judgement: `"ok"` (code confirmed), `"verify"`
+#'     (code assigned but a caveat in `note` remains), or `"unresolved"` (no
+#'     code — `variable` is `NA`). Distinct from
+#'     `validate_crosswalk()$check`, which is computed against `cliaretl`.}
+#'   \item{`note`}{Free-text caveat: how the code was resolved, an outstanding
+#'     check, or why a row is unresolved.}
 #' }
 #'
 #' @seealso `cgjr_taxonomy`, [validate_crosswalk()], [build_ctfdata_list()],
@@ -167,6 +173,8 @@
 #'   \item{`source`}{Source as stated in the taxonomy; `source_cliar` is the
 #'     catalogue's own source string.}
 #'   \item{`variable`}{Resolved `cliaretl` code, or `NA`.}
+#'   \item{`status`}{Editor's judgement from the crosswalk: `"ok"` /
+#'     `"verify"` / `"unresolved"`.}
 #'   \item{`note`}{Resolution caveat from the crosswalk.}
 #'   \item{`var_name`, `description`, `description_short`, `family_name`,
 #'     `etl_source`, `benchmarked_ctf`, `benchmark_dynamic_indicator`,
