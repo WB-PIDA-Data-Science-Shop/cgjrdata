@@ -2,7 +2,11 @@
 
 export(add_subcluster_score)
 export(aggregate_data_list)
+export(build_ctfdata_list)
+export(build_metadata_tbl)
+export(build_rawdata_list)
 export(compute_cluster_averages)
 export(extract_cliar_data)
 export(score_ctfdata_list)
+export(validate_crosswalk)
 importFrom(dplyr,where)

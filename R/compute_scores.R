@@ -41,10 +41,10 @@ add_subcluster_score <- function(tbl,
 
   indicator_cols <- setdiff(names(tbl), id_cols)
 
-  if (length(indicator_cols) == 0L) {
-    tbl$score       <- NA_real_
-    tbl$var_count   <- 0L
-    tbl$nonna_count <- 0L
+  if (length(indicator_cols) == 0L || nrow(tbl) == 0L) {
+    tbl$score       <- rep(NA_real_, nrow(tbl))
+    tbl$var_count   <- rep(length(indicator_cols), nrow(tbl))
+    tbl$nonna_count <- rep(0L, nrow(tbl))
     return(tbl)
   }
 
@@ -61,14 +61,19 @@ add_subcluster_score <- function(tbl,
 }
 
 
-#' Enrich all subclusters in a ctfdata_list with score columns
+#' Enrich all leaf tibbles in a ctfdata_list with score columns
 #'
-#' Applies [add_subcluster_score()] to every subcluster tibble in a nested
+#' Applies [add_subcluster_score()] to every leaf tibble in a nested
 #' `ctfdata_list`, returning the same nested-list structure with `score`,
 #' `var_count`, and `nonna_count` appended to each tibble.
 #'
-#' @param ctfdata_list A named nested list structured as
-#'   `list[[cluster]][[subcluster]]`, where each leaf is a tibble.
+#' Nesting depth is arbitrary: two levels
+#' (`list[[cluster]][[subcluster]]`) for most of the taxonomy, three
+#' (`list[[cluster]][[subcluster]][[sub_subcluster]]`) for Public Financial
+#' Management. A leaf is any `data.frame`; everything else is a container that
+#' is recursed into.
+#'
+#' @param ctfdata_list A named nested list whose leaves are tibbles.
 #' @param id_cols Passed through to [add_subcluster_score()].
 #'
 #' @return The input list with all leaf tibbles enriched with score columns.
@@ -82,13 +87,10 @@ add_subcluster_score <- function(tbl,
 #' @export
 score_ctfdata_list <- function(ctfdata_list,
                                id_cols = c("country_code", "country_name", "year")) {
-  stopifnot(is.list(ctfdata_list))
+  stopifnot(is.list(ctfdata_list), !is.data.frame(ctfdata_list))
 
-  lapply(ctfdata_list, function(cluster) {
-    stopifnot(is.list(cluster))
-    lapply(cluster, function(subcluster) {
-      add_subcluster_score(subcluster, id_cols = id_cols)
-    })
+  .cgjr_map_leaves(ctfdata_list, function(tbl) {
+    add_subcluster_score(tbl, id_cols = id_cols)
   })
 }
 
@@ -96,36 +98,30 @@ score_ctfdata_list <- function(ctfdata_list,
 #' Compute cluster and overall averages from a scored ctfdata_list
 #'
 #' Takes a `ctfdata_list` that has already been enriched by
-#' [score_ctfdata_list()] (i.e. each subcluster tibble has a `score` column)
-#' and computes:
+#' [score_ctfdata_list()] (i.e. every leaf tibble has a `score` column) and
+#' computes:
 #'
-#' * One score per cluster per `country_code × country_name × year`, defined
-#'   as the **mean of the subcluster scores** (Option A — equal weight per
-#'   subcluster regardless of how many indicators it contains).
-#' * One overall score per `country_code × country_name × year`, defined as
-#'   the mean of the four cluster scores (`na.rm = TRUE`).
+#' * One score per **cluster** (top-level list element) per
+#'   `country_code x country_name x year`, defined recursively as the mean of
+#'   its immediate children's scores — equal weight per child at every level.
+#'   For a plain two-level cluster this is the mean of its subcluster scores;
+#'   for Public Financial Management it is the mean of its sub-subcluster
+#'   scores, each of which is itself a row-mean of that sub-subcluster's
+#'   indicators.
+#' * One `overall_score` per `country_code x country_name x year`, defined as
+#'   the mean of the cluster scores (`na.rm = TRUE`).
+#'
+#' Empty leaves (zero-row tibbles) contribute nothing to the joins, so a
+#' "coming soon" subcluster neither inflates nor deflates its cluster score.
 #'
 #' @param ctfdata_list A scored nested list (output of [score_ctfdata_list()]).
+#'   Nesting depth may vary between clusters.
 #' @param id_cols Character vector of identifier columns. Defaults to
 #'   `c("country_code", "country_name", "year")`.
 #'
-#' @return A tibble with one row per `country_code × country_name × year` and
-#'   the following columns:
-#'   \describe{
-#'     \item{`country_code`}{ISO 3-letter country code.}
-#'     \item{`country_name`}{Country name.}
-#'     \item{`year`}{Calendar year.}
-#'     \item{`institutional_environment_score`}{Mean of subcluster scores
-#'       within the Institutional Environment cluster.}
-#'     \item{`political_institutions_score`}{Mean of subcluster scores
-#'       within the Political Institutions cluster.}
-#'     \item{`center_of_government_score`}{Mean of subcluster scores
-#'       within the Center of Government cluster.}
-#'     \item{`sectors_service_delivery_score`}{Mean of subcluster scores
-#'       within the Sectors / Service Delivery cluster.}
-#'     \item{`overall_score`}{Mean of the four cluster scores per row
-#'       (`na.rm = TRUE`).}
-#'   }
+#' @return A tibble with one row per `country_code x country_name x year`,
+#'   an `<cluster>_score` column for each top-level list element, and an
+#'   `overall_score` column (mean of the cluster scores, `na.rm = TRUE`).
 #'
 #' @examples
 #' \dontrun{
@@ -137,71 +133,62 @@ score_ctfdata_list <- function(ctfdata_list,
 #' @export
 compute_cluster_averages <- function(ctfdata_list,
                                      id_cols = c("country_code", "country_name", "year")) {
-  stopifnot(is.list(ctfdata_list))
+  stopifnot(is.list(ctfdata_list), !is.data.frame(ctfdata_list))
 
   cluster_names <- names(ctfdata_list)
-  if (is.null(cluster_names)) {
-    stop("`ctfdata_list` must be a named list.")
+  if (is.null(cluster_names) || any(cluster_names == "")) {
+    stop("`ctfdata_list` must be a fully named list.")
   }
 
-  # Helper: compute mean-of-subcluster-scores for one cluster
-  cluster_score_tbl <- function(cluster_list, cluster_nm) {
-    stopifnot(is.list(cluster_list))
+  row_mean_na <- function(mat) {
+    v <- rowMeans(mat, na.rm = TRUE)
+    v[is.nan(v)] <- NA_real_
+    v
+  }
 
-    # Bind all subcluster score columns together on id cols
-    # Each subcluster contributes exactly its `score` column
-    subcluster_tbls <- lapply(names(cluster_list), function(sc_nm) {
-      sc_tbl <- cluster_list[[sc_nm]]
-      if (!"score" %in% names(sc_tbl)) {
-        stop(
-          "Subcluster '", sc_nm, "' in cluster '", cluster_nm,
-          "' does not have a `score` column. ",
-          "Run score_ctfdata_list() first."
-        )
+  # Recursively reduce a node to an id_cols + `score` tibble.
+  node_score_tbl <- function(node, label) {
+    if (is.data.frame(node)) {
+      if (!"score" %in% names(node)) {
+        stop("Leaf '", label, "' does not have a `score` column. ",
+             "Run score_ctfdata_list() first.")
       }
-      # Rename score to the subcluster name so we can average across them
-      out <- sc_tbl[c(id_cols, "score")]
-      names(out)[names(out) == "score"] <- sc_nm
-      out
-    })
+      return(dplyr::as_tibble(node[c(id_cols, "score")]))
+    }
+    stopifnot(is.list(node))
+    child_nm <- names(node)
+    if (is.null(child_nm) || any(child_nm == "")) {
+      stop("Node '", label, "' must be a fully named list.")
+    }
+    child_tbls <- Map(function(child, nm) {
+      t <- node_score_tbl(child, paste0(label, " > ", nm))
+      names(t)[names(t) == "score"] <- nm
+      t
+    }, node, child_nm)
 
-    # Full-join all subclusters on id_cols
     joined <- Reduce(
-      function(x, y) merge(x, y, by = id_cols, all = TRUE),
-      subcluster_tbls
+      function(x, y) dplyr::full_join(x, y, by = id_cols),
+      child_tbls
     )
-
-    # Mean of subcluster columns (equal weight per subcluster)
-    sc_cols  <- setdiff(names(joined), id_cols)
-    score_nm <- paste0(cluster_nm, "_score")
-    mat <- as.matrix(joined[sc_cols])
-    joined[[score_nm]] <- rowMeans(mat, na.rm = TRUE)
-    joined[[score_nm]][is.nan(joined[[score_nm]])] <- NA_real_
-
-    # Return only id cols + cluster score
-    joined[c(id_cols, score_nm)]
+    sc_cols <- setdiff(names(joined), id_cols)
+    joined$score <- row_mean_na(as.matrix(joined[sc_cols]))
+    dplyr::as_tibble(joined[c(id_cols, "score")])
   }
 
-  # Compute per-cluster score tables
-  cluster_tbls <- lapply(cluster_names, function(nm) {
-    cluster_score_tbl(ctfdata_list[[nm]], nm)
-  })
+  cluster_tbls <- Map(function(node, nm) {
+    t <- node_score_tbl(node, nm)
+    names(t)[names(t) == "score"] <- paste0(nm, "_score")
+    t
+  }, ctfdata_list, cluster_names)
 
-  # Full-join all cluster score tables
   result <- Reduce(
-    function(x, y) merge(x, y, by = id_cols, all = TRUE),
+    function(x, y) dplyr::full_join(x, y, by = id_cols),
     cluster_tbls
   )
 
-  # Overall score = mean of the four cluster score columns
-  cluster_score_cols <- paste0(cluster_names, "_score")
-  avail_cluster_cols <- intersect(cluster_score_cols, names(result))
-  mat_cluster <- as.matrix(result[avail_cluster_cols])
-  result[["overall_score"]] <- rowMeans(mat_cluster, na.rm = TRUE)
-  result[["overall_score"]][is.nan(result[["overall_score"]])] <- NA_real_
+  cluster_score_cols <- intersect(paste0(cluster_names, "_score"), names(result))
+  result[["overall_score"]] <- row_mean_na(as.matrix(result[cluster_score_cols]))
 
-  # Return as tibble, sorted
   result <- dplyr::as_tibble(result)
-  result <- dplyr::arrange(result, country_code, year)
-  result
+  dplyr::arrange(result, country_code, year)
 }

@@ -5,34 +5,21 @@
 \alias{regionrawdata_list}
 \title{Raw indicator data aggregated to World Bank region}
 \format{
-A nested list \verb{[[cluster]][[subcluster]]}. Each leaf tibble contains:
-\describe{
-\item{\code{region}}{Full World Bank region name.}
-\item{\code{region_code}}{Three-letter WB region code.}
-\item{\code{year}}{Calendar year.}
-\item{\verb{<indicator columns>}}{Region-mean of each raw indicator
-(\code{na.rm = TRUE}).}
-\item{\code{score}}{Row mean of the region-averaged indicator columns
-(\code{na.rm = TRUE}); \code{NA} when all indicators are \code{NA}.}
-}
+A nested list matching \code{rawdata_list}. Each populated leaf tibble
+has \code{region}, \code{region_code}, \code{year}, region-mean indicator columns, and a
+\code{score}.
 }
 \source{
-Derived from \code{rawdata_list} and \code{wbcountries} via
-\code{\link[=aggregate_data_list]{aggregate_data_list()}}.
+Derived from \code{rawdata_list} and \code{wbcountries} via \code{\link[=aggregate_data_list]{aggregate_data_list()}}.
 }
 \usage{
 regionrawdata_list
 }
 \description{
-A nested list with the same cluster/subcluster structure as \code{rawdata_list},
-but with country-level rows replaced by World Bank region-level averages.
-
-\strong{Aggregation logic:} identical to \code{regionctf_list} but applied to
-\code{rawdata_list} (raw source values rather than CTF scores). Because
-\code{rawdata_list} leaves do not carry \code{score}/\code{var_count}/\code{nonna_count}
-columns, all numeric columns are averaged and \code{score} is freshly computed
-as the row mean of those averages. See \code{\link[=aggregate_data_list]{aggregate_data_list()}} for full
-details.
+\code{rawdata_list} with country-level rows replaced by World Bank region-level
+averages. Identical logic to \code{regionctf_list} applied to raw source values;
+because raw leaves carry no scoring artefacts, all numeric columns are
+averaged and \code{score} is computed fresh.
 }
 \seealso{
 \code{rawdata_list}, \code{wbcountries}, \code{\link[=aggregate_data_list]{aggregate_data_list()}}

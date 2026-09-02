@@ -12,21 +12,35 @@ coverage](https://codecov.io/gh/WB-PIDA-Data-Science-Shop/cgjrdata/graph/badge.s
 
 `cgjrdata` is the data preparation package for the **World Bank Country
 Jobs and Growth Report (CGJR)**. It pulls, processes and packages
-indicator data from the `cliaretl` source package into four structured,
+indicator data from the `cliaretl` source package into structured,
 lazyloaded objects ready for consumption by the `cgjrapp` Shiny
 dashboard.
 
 ## Analytical Framework
 
-The CGJR framework covers **135 indicators** organised into **4
-clusters** and **13 subclusters**:
+Every indicator’s place in the taxonomy lives in a single crosswalk
+table (`cgjr_crosswalk`), validated against `cliaretl`’s own eligibility
+flags at build time. The taxonomy has **4 clusters** and **11 leaf
+nodes**:
 
-| \# | Cluster | Subclusters |
+| \# | Cluster (key) | Subclusters (leaf nodes) |
 |----|----|----|
-| 1 | Institutional Environment | Degree of Integrity, Transparency & Accountability, Justice & Rule of Law, Social Cohesion Norms & Cooperation |
-| 2 | Political Institutions | Political Institutions |
-| 3 | Center of Government | Public Financial Management, Public Sector HRM, Digital & Data |
-| 4 | Sectors / Service Delivery | Business Environment, Service Delivery, SOE Corporate Governance, Labor & Social Protection, Energy & Environment |
+| 1 | `institutional_environment` | Degree of Integrity, Transparency & Accountability, Justice & Rule of Law |
+| 2 | `core_governance_functions` | Public Financial Management *(→ Budget Cycle & Fiscal Planning, Domestic Revenue Mobilization, Public Procurement, Public Investment Management)*, Public Sector HRM, Digital & Data |
+| 3 | `beyond_core_governance_functions` | Market Regulatory Institutions, Service Delivery, SOE Governance |
+| 4 | `context` | Political Institutions & Social Cohesion, Social Cohesion Norms & Cooperation |
+
+Public Financial Management is a three-level branch. All nested-list
+objects (`rawdata_list`, `ctfdata_list`, …) and the score functions
+handle arbitrary nesting depth.
+
+**Current CTF-dynamic coverage:** under the shipped `cliaretl`, Public
+Financial Management (all four sub-subclusters) and SOE Governance have
+**no** dynamic-panel indicators — their `ctfdata_list` leaves are empty
+(“coming soon”). Digital & Data, Market Regulatory Institutions and
+Service Delivery consist entirely of indicators flagged
+`benchmark_dynamic_family_aggregate = "No"`; their subcluster scores are
+computed but `validate_crosswalk()` warns about them.
 
 ## Installation
 
@@ -44,7 +58,11 @@ You will need a GitHub Personal Access Token (PAT) with access to the
 
 ## Package Objects
 
-Four objects are lazyloaded when you attach the package:
+These objects are lazyloaded when you attach the package:
+`cgjr_taxonomy`, `cgjr_crosswalk`, `rawdata_list`, `ctfdata_list`,
+`metadata_tbl`, `institutional_averages_tbl`, `wbcountries`, and the
+region/income aggregates (`regionctf_list`, `incomectf_list`,
+`regionrawdata_list`, `incomerawdata_list`).
 
 ``` r
 library(cgjrdata)
@@ -74,60 +92,56 @@ carries three computed columns:
 ctfdata_list$institutional_environment$degree_of_integrity
 ```
 
-### `metadata_tbl`
+### `cgjr_taxonomy` / `cgjr_crosswalk`
 
-A single combined tibble with one row per indicator, containing variable
-names, descriptions, sources, cluster/subcluster assignments and
-benchmarking flags.
+`cgjr_taxonomy` is one row per leaf node (the full hierarchy, empty
+nodes included). `cgjr_crosswalk` is one row per indicator, carrying its
+cluster/subcluster keys, the resolved `cliaretl` variable code (or `NA`
+when unresolved), and a `note`.
 
 ``` r
-metadata_tbl |> dplyr::filter(subcluster == "Degree of Integrity")
+validate_crosswalk(cgjr_crosswalk)   # classify every row against cliaretl flags
+```
+
+### `metadata_tbl`
+
+`cgjr_crosswalk` joined to `cgjr_taxonomy` and
+`cliaretl::db_variables_final`, one row per indicator, with
+`dynamic_indicator_eligible` / `family_aggregate_eligible` flags.
+
+``` r
+metadata_tbl |> dplyr::filter(subcluster == "digital_and_data")
 ```
 
 ### `institutional_averages_tbl`
 
 The primary dataset for the dashboard overview page. One row per
-`country_code × country_name × year`, with cluster scores and an overall
-score:
+`country_code × country_name × year`, with one `<cluster>_score` column
+per cluster plus `overall_score`.
 
-``` r
-institutional_averages_tbl
-#> # A tibble: ...
-#> country_code  country_name  year  institutional_environment_score
-#>   political_institutions_score  center_of_government_score
-#>   sectors_service_delivery_score  overall_score
-```
+**Aggregation logic (equal weight per child at every level):**
 
-**Aggregation logic (equal weight per subcluster):**
-
-1.  Subcluster score = row mean of its CTF indicator columns
-2.  Cluster score = mean of its subcluster scores
-3.  Overall score = mean of the four cluster scores
+1.  Leaf score = row mean of its CTF indicator columns (`na.rm = TRUE`)
+2.  Branch score = mean of its immediate children’s scores
+3.  Cluster score = mean of its subcluster/branch scores
+4.  Overall score = mean of the cluster scores
 
 ## Score Computation Functions
 
-Three exported helper functions power the aggregation:
-
 ``` r
-# Add score/var_count/nonna_count to a single subcluster tibble
-add_subcluster_score(tbl)
-
-# Apply to all subclusters in ctfdata_list
-ctfdata_list <- score_ctfdata_list(ctfdata_list)
-
-# Compute cluster + overall averages → institutional_averages_tbl
+add_subcluster_score(tbl)                            # score/var_count/nonna_count
+ctfdata_list <- score_ctfdata_list(ctfdata_list)     # recurse over all leaves
 institutional_averages_tbl <- compute_cluster_averages(ctfdata_list)
 ```
 
 ## Rebuilding the Data
 
-To regenerate all package data from source:
-
 ``` r
-# 1. Build all raw + CTF .rds files
+# 1. Build wbcountries + cgjr_taxonomy + cgjr_crosswalk (writes
+#    data-raw/output/cgjr_crosswalk_validation.csv for review)
 source("analysis/00-build_all_datasets.r")
 
-# 2. Combine into lazyloaded package objects
+# 2. Assemble every lazyloaded object from the crosswalk
 source("analysis/01-combine-lazyload.R")
 
 # 3. Regenerate documentation
@@ -136,16 +150,15 @@ devtools::document()
 
 ## Data Sources
 
-| Source                | Coverage       | Key indicators                     |
-|-----------------------|----------------|------------------------------------|
-| V-Dem                 | 1990–2024      | Democracy, corruption, rule of law |
-| WJP Rule of Law Index | Multiple years | Rule of law, governance            |
-| PEFA                  | 2015–2025      | Public financial management        |
-| RISE                  | 2010–2021      | Energy regulation                  |
-| OECD PMR / EPL        | 2018, 2023     | Product & labour market regulation |
-| Fraser Institute      | Multiple years | Economic freedom                   |
-| Heritage Foundation   | Multiple years | Economic freedom                   |
-| WDI / WBL / GTMI      | Multiple years | Various                            |
+| Source | Coverage | Key indicators |
+|----|----|----|
+| V-Dem | 1990–2024 | Democracy, corruption, rule of law |
+| WJP Rule of Law Index | Multiple years | Rule of law, governance |
+| PEFA | 2015–2025 | Public financial management (raw only) |
+| OECD PMR | 2018, 2023 | Product market / SOE regulation (raw / static only) |
+| Freedom House / Press Freedom Index | Multiple years | Political & civil rights |
+| BTI | Multiple years | Governance, competition, fiscal |
+| WDI / WBL / GTMI / SPI | Multiple years | Service delivery, digital, gender |
 
 ## Related Packages
 

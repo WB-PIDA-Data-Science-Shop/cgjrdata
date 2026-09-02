@@ -3,46 +3,48 @@
 \docType{data}
 \name{rawdata_list}
 \alias{rawdata_list}
-\title{Raw indicator data — all chapters}
+\title{Raw indicator data — all clusters}
 \format{
 An object of class \code{list} of length 4.
 }
 \source{
-Assembled from \code{cliaretl} raw source datasets and
-\code{data-raw/input/RISE_20102021.dta}. See \link[cliaretl:db_variables_final]{cliaretl::db_variables_final}
-for full variable provenance.
+Assembled from \code{cliaretl} raw source datasets via
+\code{\link[=build_rawdata_list]{build_rawdata_list()}}. See \link[cliaretl:db_variables_final]{cliaretl::db_variables_final} for provenance.
 }
 \usage{
 rawdata_list
 }
 \description{
-A nested list containing country-year panels of raw source values for every
-subcluster in the Country Jobs and Growth Report (CGJR) analytical
-framework. Data are sourced from the underlying provider datasets via
-\code{\link[=extract_cliar_data]{extract_cliar_data()}} with \code{type = "raw"}, except for RISE energy
-indicators which are sourced from \code{data-raw/input/RISE_20102021.dta}.
+A nested list of country-year panels of raw (un-normalised) source values,
+one leaf per node of \code{cgjr_taxonomy}. Assembled from the underlying
+provider datasets via \code{\link[=extract_cliar_data]{extract_cliar_data()}} with \code{type = "raw"}, driven by
+\code{cgjr_crosswalk}.
 
-The list is structured as \code{rawdata_list[[cluster]][[subcluster]]}, where
-both \code{cluster} and \code{subcluster} keys use snake_case names. The four
-top-level clusters and their subclusters are:
+The list follows the taxonomy hierarchy. Most paths are two levels,
+\code{rawdata_list[[cluster]][[subcluster]]}; Public Financial Management is
+three, \code{rawdata_list[["core_governance_functions"]][["public_financial_management"]][[sub_subcluster]]}:
 
 \describe{
 \item{\code{institutional_environment}}{\code{degree_of_integrity},
-\code{transparency_and_accountability}, \code{justice_and_rule_of_law},
-\code{social_cohesion_norms_and_cooperation}}
-\item{\code{political_institutions}}{\code{political_institutions}}
-\item{\code{center_of_government}}{\code{public_financial_management},
+\code{transparency_and_accountability}, \code{justice_and_rule_of_law}}
+\item{\code{core_governance_functions}}{\code{public_financial_management}
+(→ \code{budget_cycle_and_fiscal_planning}, \code{domestic_revenue_mobilization},
+\code{public_procurement}, \code{public_investment_management}),
 \code{public_sector_hrm}, \code{digital_and_data}}
-\item{\code{sectors_service_delivery}}{\code{business_environment},
-\code{service_delivery}, \code{soe_corporate_governance},
-\code{labor_and_social_protection}, \code{energy_and_environment}}
+\item{\code{beyond_core_governance_functions}}{\code{market_regulatory_institutions},
+\code{service_delivery}, \code{soe_governance}}
+\item{\code{context}}{\code{political_institutions_and_social_cohesion},
+\code{social_cohesion_norms_and_cooperation}}
 }
 
-Each element is a tibble with at minimum the columns \code{country_code},
-\code{country_name}, \code{year}, and one column per indicator. See \code{metadata_tbl}
-for full variable descriptions.
+Each leaf is a tibble of \code{country_code}, \code{country_name}, \code{year} and one
+column per indicator that resolves to a raw source. Unlike \code{ctfdata_list},
+raw coverage does not depend on the \verb{benchmark_dynamic_*} flags — Public
+Financial Management and SOE governance carry raw PEFA / OECD-PMR values
+here even though their CTF leaves are empty. A leaf whose indicators
+resolve to no raw source is a zero-row tibble with identifier columns only.
 }
 \seealso{
-\code{ctfdata_list}, \code{metadata_tbl}
+\code{ctfdata_list}, \code{metadata_tbl}, \code{cgjr_crosswalk}
 }
 \keyword{datasets}

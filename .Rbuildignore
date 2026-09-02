@@ -8,3 +8,5 @@
 ^copilot_logs$
 ^\.github$
 ^README\.Rmd$
+^reconfiguration\.md$
+^\.vscode$

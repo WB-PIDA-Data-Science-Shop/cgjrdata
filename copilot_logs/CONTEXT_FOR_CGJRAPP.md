@@ -1,415 +1,287 @@
 # Context for `cgjrapp` — Shiny Dashboard Development
 
-> **Generated:** 2026-03-23  
-> **Source package:** `cgjrdata` (R package, `~/GitProjects/cgjrdata`)  
-> **Destination app:** `cgjrapp` (Shiny dashboard, to be created)  
+> **Updated:** 2026-09-02 (rewritten for the new CGJR taxonomy)
+> **Source package:** `cgjrdata` (R package, `~/GitProjects/cgjrdata`)
+> **Destination app:** `cgjrapp` (Shiny dashboard, to be created)
 > **Purpose:** Full context briefing for an AI agent developing `cgjrapp` from scratch.
 
 ---
 
 ## 1. Project Overview
 
-The **Country Jobs and Growth Report (CGJR)** is a World Bank analytical framework that assesses the quality of a country's institutional and policy environment relevant to jobs and growth. The assessment covers 135 indicators grouped into **4 clusters** and **13 subclusters**.
+The **Country Jobs and Growth Report (CGJR)** is a World Bank analytical
+framework assessing the quality of a country's institutional and policy
+environment relevant to jobs and growth.
 
 The data preparation pipeline is the R package **`cgjrdata`**. It:
-1. Pulls indicator data from the `cliaretl` package (a separate internal WB data package)
-2. Processes and organises it into structured nested lists
-3. Computes Closeness-to-Frontier (CTF) subcluster, cluster, and overall scores
-4. Exposes everything as lazyloaded package objects for consumption by the Shiny app
 
-The Shiny app **`cgjrapp`** will consume these objects to build an interactive dashboard showing country performance across the CGJR framework.
+1. Defines the CGJR taxonomy and every indicator's place in it as a single
+   **crosswalk table** (`cgjr_crosswalk`), with each indicator's `cliaretl`
+   variable code resolved against the live catalogue.
+2. Validates that crosswalk against `cliaretl`'s own eligibility flags.
+3. Slices `cliaretl` panels into nested lists following the taxonomy.
+4. Computes Closeness-to-Frontier (CTF) subcluster, cluster and overall
+   scores.
+5. Exposes everything as lazyloaded package objects.
+
+`cgjrapp` consumes those objects to build an interactive dashboard of country
+performance across the framework.
 
 ---
 
-## 2. Analytical Framework — Clusters and Subclusters
+## 2. Analytical Framework — Clusters and Leaf Nodes
 
-The framework has 4 clusters, each with subclusters (13 total). These map directly to the nested list keys used throughout `cgjrdata`.
+4 clusters, 11 subclusters, 14 **leaf nodes** (Public Financial Management is
+a three-level branch with 4 sub-subclusters). Keys are snake_case and are the
+list keys used throughout `cgjrdata`.
 
-| Cluster (key) | # | Subcluster (key) | # indicators |
-|---|---|---|---|
-| `institutional_environment` | 1 | `degree_of_integrity` | 5 |
-| | | `transparency_and_accountability` | 5 |
-| | | `justice_and_rule_of_law` | 14 |
-| | | `social_cohesion_norms_and_cooperation` | 7 |
-| `political_institutions` | 2 | `political_institutions` | 20 |
-| `center_of_government` | 3 | `public_financial_management` | 27 |
-| | | `public_sector_hrm` | 12 |
-| | | `digital_and_data` | 9 |
-| `sectors_service_delivery` | 4 | `business_environment` | 13 |
-| | | `service_delivery` | 5 |
-| | | `soe_corporate_governance` | 5 |
-| | | `labor_and_social_protection` | 9 |
-| | | `energy_and_environment` | 16 |
+| Cluster key | # | Subcluster key | Sub-subcluster keys | CTF status |
+|---|---|---|---|---|
+| `institutional_environment` | 1 | `degree_of_integrity` | — | populated (5 ind.) |
+| | | `transparency_and_accountability` | — | populated (5) |
+| | | `justice_and_rule_of_law` | — | populated (16) |
+| `core_governance_functions` | 2 | `public_financial_management` | `budget_cycle_and_fiscal_planning`, `domestic_revenue_mobilization`, `public_procurement`, `public_investment_management` | **all empty** — see §5.3 |
+| | | `public_sector_hrm` | — | populated (5) |
+| | | `digital_and_data` | — | populated (5) but family-aggregate-ineligible — see §5.3 |
+| `beyond_core_governance_functions` | 3 | `market_regulatory_institutions` | — | populated (6), family-aggregate-ineligible |
+| | | `service_delivery` | — | populated (11), family-aggregate-ineligible |
+| | | `soe_governance` | — | **empty** — see §5.3 |
+| `context` | 4 | `political_institutions_and_social_cohesion` | — | populated (21) |
+| | | `social_cohesion_norms_and_cooperation` | — | populated (5) |
 
-All keys are **snake_case**. They are used as-is when accessing lists:
+`cgjr_taxonomy` (lazyloaded) is the machine-readable version of this table:
+one row per leaf node with `cluster` / `cluster_num` / `cluster_name` /
+`subcluster` / ... / `sub_subcluster_name`.
+
+Access patterns:
+
 ```r
-ctfdata_list$institutional_environment$degree_of_integrity
-rawdata_list$sectors_service_delivery$energy_and_environment
+ctfdata_list$institutional_environment$degree_of_integrity            # 2-level
+ctfdata_list$core_governance_functions$public_financial_management$budget_cycle_and_fiscal_planning  # 3-level
 ```
 
 ---
 
 ## 3. Source Data — `cliaretl` Package
 
-`cgjrdata` imports from `cliaretl`, a separate internal R package. The key datasets are:
-
 | Object | Description | Key columns |
 |---|---|---|
-| `cliaretl::db_variables_final` | Variable catalogue (440 rows × 17 cols) | `variable`, `etl_source`, `cluster`, `subcluster`, `family_name`, `description`, `source` |
-| `cliaretl::closeness_to_frontier_dynamic` | CTF dynamic panel (2796 × 118) | `country_code`, `country_name`, `year` + 115 indicator cols |
+| `cliaretl::db_variables_final` | Variable catalogue (440 × 17) | `variable`, `etl_source`, `family_name`, `description`, `description_short`, `benchmark_dynamic_indicator`, `benchmark_dynamic_family_aggregate` |
+| `cliaretl::closeness_to_frontier_dynamic` | CTF dynamic panel (2796 × 118) | `country_code`, `country_name`, `year` + indicator cols |
 | `cliaretl::closeness_to_frontier_static` | CTF static cross-section | `country_code`, `country_name` + indicator cols |
-| `cliaretl::wb_country_list` | Country metadata | `country_code`, `country_name` — **has duplicate `country_code` rows**, always use `distinct(country_code, .keep_all = TRUE)` before joining |
-| `cliaretl::d360_efi_data` | WB API / D360 raw data | `etl_source = "wb_api"` |
-| `cliaretl::vdem_data` | V-Dem raw | `etl_source = "vdem"` |
-| `cliaretl::wdi_indicators` | WDI raw | `etl_source = "wdi"` |
-| `cliaretl::pefa_assessments` | PEFA raw | `etl_source = "pefa"` |
-| `cliaretl::fraser` | Fraser Institute | `etl_source = "fraser"` |
-| `cliaretl::heritage` | Heritage Foundation | `etl_source = "heritage"` |
-| `cliaretl::gfdb` | Global Findex / debt | `etl_source = "gfdb"` |
-| `cliaretl::romelli` | Romelli CBI dataset | `etl_source = "romelli"` |
-| `cliaretl::debt_transparency` | Debt transparency index | `etl_source = "debt_transparency"` |
-| `cliaretl::epl` | OECD EPL | `etl_source = "oecd_epl"` |
-| `cliaretl::pmr` | OECD PMR | `etl_source = "oecd_pmr"` |
-| `cliaretl::wbl_data` | WBL data | `etl_source = "wb_wbl"` |
+| `cliaretl::wb_country_list` | Country metadata — **has duplicate `country_code` rows**, always `distinct(country_code, .keep_all = TRUE)` before joining | `country_code`, `country_name` |
+| `cliaretl::vdem_data`, `d360_efi_data`, `wdi_indicators`, `pefa_assessments`, `pmr`, `gfdb`, `wbl_data`, ... | Raw source datasets, routed by `etl_source` | — |
 
-**RISE energy data** is stored locally (not in `cliaretl`) at:
-`data-raw/input/RISE_20102021.dta` — read with `haven::read_dta()`, columns are **uppercase** and must be lowercased with `rename_with(tolower)`. This covers 140 countries × 12 years (2010–2021), 16 RISE indicators.
+The `wjp` corrected WJP pull referenced in `reconfiguration.md` is **not**
+present in this `cliaretl` — see §8.
+
+RISE energy data is no longer used (the new taxonomy has no energy
+subcluster).
 
 ---
 
-## 4. `extract_cliar_data()` — The Core Function
+## 4. The Crosswalk and Its Builders
 
-```r
-extract_cliar_data(variables = NULL, type = c("dynamic", "static", "raw"), id_vars = NULL)
-```
+### `cgjr_crosswalk` (lazyloaded)
 
-**What it does:** API-style accessor over `cliaretl` data. Pass variable names matching `db_variables_final$variable`.
+One row per indicator (110 rows). Columns: `cluster`, `subcluster`,
+`sub_subcluster`, `indicator_num`, `indicator` (display name), `source`
+(as stated by the team), `variable` (resolved `cliaretl` code, or `NA` if
+unresolved), `note` (how it was resolved / outstanding caveats).
 
-- `type = "dynamic"`: returns from `closeness_to_frontier_dynamic` (CTF-scaled, country_code × year panel)
-- `type = "static"`: returns from `closeness_to_frontier_static` (CTF-scaled, country_code cross-section, no year)
-- `type = "raw"`: routes each variable via its `etl_source` to the raw source dataset, then full-joins on `country_code` + `year`
-- `variables = NULL`: returns all available columns for the chosen type
-- Warns (does not error) on unrecognised or absent variables
-- Errors when no valid variables remain after filtering
+### `validate_crosswalk(crosswalk = cgjr_crosswalk)` — exported
 
-**Location:** `R/extract_cliar_data.R`  
-**Tests:** `tests/testthat/test-extract_cliar_data.R` (33 tests, all passing)
+Classifies every row and warns. Returns a tibble with a `check` column:
+
+| `check` | meaning | current count |
+|---|---|---|
+| `ok` | in panel, `benchmark_dynamic_indicator == "Yes"`, family-aggregate `Yes`/`Partial` | 57 |
+| `not_family_aggregate_eligible` | valid panel column but `benchmark_dynamic_family_aggregate == "No"` — **included** in `ctfdata_list`, but the subcluster score is not sanctioned by `cliaretl` | 22 |
+| `not_dynamic_eligible` | not a column of the dynamic panel — **excluded** from `ctfdata_list` | 27 |
+| `unresolved` | `variable` is `NA` — **excluded** | 4 |
+
+### `build_ctfdata_list()`, `build_rawdata_list()`, `build_metadata_tbl()` — exported
+
+Build the nested objects directly from `cgjr_crosswalk` + `cgjr_taxonomy`.
+There are no per-subcluster scripts any more.
 
 ---
 
 ## 5. Lazyloaded Package Objects
 
-These four objects are available immediately after `library(cgjrdata)` (or `devtools::load_all()`):
+`library(cgjrdata)` attaches: `cgjr_taxonomy`, `cgjr_crosswalk`,
+`rawdata_list`, `ctfdata_list`, `metadata_tbl`, `institutional_averages_tbl`,
+`wbcountries`, `regionctf_list`, `incomectf_list`, `regionrawdata_list`,
+`incomerawdata_list`.
 
 ### 5.1 `rawdata_list`
 
-```r
-rawdata_list[[cluster]][[subcluster]]  # → tibble
-```
+`rawdata_list[[cluster]][[subcluster]]` (or `[[...]][[sub_subcluster]]` for
+PFM) → tibble of `country_code`, `country_name`, `year` + raw source values.
 
-- Nested list, same 4-cluster / 13-subcluster structure
-- Each tibble: `country_code`, `country_name`, `year`, + raw (un-transformed) indicator values in original source units
-- Built by `analysis/00-build_all_datasets.r` → `analysis/01-combine-lazyload.R`
-- Raw values are **NOT** CTF-scaled; they are the original numbers from source datasets
-- PEFA: stored as `assessment_date` (year of assessment), not a panel
-- RISE: joined from local `.dta` file
+Raw coverage is **independent** of the `benchmark_dynamic_*` flags: PFM and
+SOE governance carry real raw PEFA / OECD-PMR data here even though their CTF
+leaves are empty (e.g. `rawdata_list$core_governance_functions$public_financial_management$budget_cycle_and_fiscal_planning`
+is 8939 × 27). A leaf whose indicators resolve to no raw source is a zero-row
+tibble with id columns only.
 
 ### 5.2 `ctfdata_list`
 
-```r
-ctfdata_list[[cluster]][[subcluster]]  # → tibble
-```
-
-- Same structure as `rawdata_list`
-- Each tibble: `country_code`, `country_name`, `year`, + CTF-scaled indicator columns, **plus** three appended score columns:
+Same nesting as `rawdata_list`. Each populated leaf: `country_code`,
+`country_name`, `year`, one CTF-scaled column per **dynamic-eligible**
+indicator, plus three columns appended by `score_ctfdata_list()`:
 
 | Column | Type | Description |
 |---|---|---|
-| `score` | `dbl` | `rowMeans` of all indicator columns, `na.rm = TRUE`. `NA` when every indicator is `NA` for that row. |
-| `var_count` | `int` | Total number of indicator columns (constant per subcluster). |
-| `nonna_count` | `int` | Count of non-`NA` indicator values used for `score` on each row. |
+| `score` | `dbl` | row mean of indicator columns, `na.rm = TRUE`; `NA` when all-NA |
+| `var_count` | `int` | number of indicator columns |
+| `nonna_count` | `int` | non-NA indicator values used per row |
 
-- CTF scores are normalised 0–1 (0 = worst, 1 = best frontier)
-- **Known gaps:** `public_financial_management` and `soe_corporate_governance` subclusters have no CTF dynamic coverage (variables not in `closeness_to_frontier_dynamic`) → their CTF tibbles contain only id columns (and thus `score = NA`, `var_count = 0`)
+CTF scores are 0–1 (1 = frontier); direction already corrected upstream.
 
-### 5.3 `metadata_tbl`
+### 5.3 Empty and caveated leaves — **dashboard must handle**
 
-```r
-metadata_tbl  # → single tibble, one row per indicator
-```
+| Leaf | State | Why |
+|---|---|---|
+| `core_governance_functions$public_financial_management$*` (all 4) | **zero-row** tibble | every PFM indicator (BTI/CLIAR/GTMI + 21 PEFA) is `benchmark_dynamic_indicator = "No"` / absent from the dynamic panel |
+| `beyond_core_governance_functions$soe_governance` | **zero-row** tibble | OECD PMR codes are static-only; 3 of 6 SOE indicators unresolved |
+| `core_governance_functions$digital_and_data` | populated, **flagged** | all 5 indicators `benchmark_dynamic_family_aggregate = "No"` |
+| `beyond_core_governance_functions$market_regulatory_institutions` | populated, **flagged** | all 6 indicators family-aggregate `"No"` |
+| `beyond_core_governance_functions$service_delivery` | populated, **flagged** | all 11 indicators family-aggregate `"No"` |
 
-- Row-bound combination of all 13 subcluster metadata tibbles
-- Key columns for dashboard use:
+For an empty leaf: `nrow == 0`. Render "Indicators coming soon". For a
+flagged leaf: the `score` column is populated but its family-aggregate
+validity is disputed — surface `metadata_tbl$family_aggregate_eligible`
+(all `FALSE` for those three subclusters) so users know.
 
-| Column | Description |
-|---|---|
-| `variable` | Snake-case column name (matches `rawdata_list` / `ctfdata_list` columns) |
-| `var_name` | Human-readable name |
-| `description_short` | One-sentence description |
-| `source` | Data source name |
-| `cluster` | Cluster name (human-readable) |
-| `cluster_num` | 1–4 |
-| `subcluster` | Subcluster name (human-readable) |
-| `subcluster_num` | Position within cluster |
-| `etl_source` | Source dataset key |
-| `benchmarked_ctf` | `"Yes"` / `"No"` |
+### 5.4 `metadata_tbl`
 
-### 5.4 `institutional_averages_tbl`
+One row per `cgjr_crosswalk` row (110 × 32). Every taxonomy indicator,
+including unresolved ones. Key columns: `cluster`/`subcluster`/`sub_subcluster`
+(+ `_num`, `_name`), `indicator`, `indicator_num`, `source`, `variable`,
+`note`, catalogue columns from `db_variables_final` (`var_name`,
+`description_short`, `family_name`, `benchmark_dynamic_indicator`,
+`benchmark_dynamic_family_aggregate`, ...), plus derived flags
+`dynamic_indicator_eligible` and `family_aggregate_eligible`.
 
-```r
-institutional_averages_tbl  # → wide tibble
-```
+### 5.5 `institutional_averages_tbl`
 
-- One row per `country_code × country_name × year`
-- **This is the primary dataset for the dashboard overview page**
-- Columns:
+**Primary dataset for the overview page.** One row per
+`country_code × country_name × year` (2796 rows; years 2013–2024;
+233 countries). Columns:
 
 | Column | Description |
 |---|---|
-| `country_code` | ISO 3-letter code |
-| `country_name` | Country name |
-| `year` | Calendar year |
-| `institutional_environment_score` | Mean of 4 subcluster scores (equal weight) |
-| `political_institutions_score` | Score for 1 subcluster (same as subcluster score) |
-| `center_of_government_score` | Mean of 3 subcluster scores |
-| `sectors_service_delivery_score` | Mean of 5 subcluster scores |
-| `overall_score` | Mean of the 4 cluster scores (`na.rm = TRUE`) |
+| `country_code`, `country_name`, `year` | keys |
+| `institutional_environment_score` | mean of its 3 subcluster scores |
+| `core_governance_functions_score` | mean of its subcluster scores (PFM empty → does not contribute) |
+| `beyond_core_governance_functions_score` | mean of its subcluster scores (SOE empty → does not contribute) |
+| `context_score` | mean of its 2 subcluster scores |
+| `overall_score` | mean of the 4 cluster scores (`na.rm = TRUE`) |
 
-**Aggregation logic (Option A — equal weight per subcluster):**
-1. Each subcluster score = `rowMeans` of its indicator CTF columns
-2. Each cluster score = `mean` of its subcluster scores
-3. Overall score = `mean` of 4 cluster scores
+**Aggregation (equal weight per child at every level):**
+1. leaf score = row mean of its CTF indicator columns
+2. branch score = mean of its immediate children's scores (PFM = mean of its
+   4 sub-subcluster scores)
+3. cluster score = mean of its subcluster/branch scores
+4. overall = mean of the cluster scores
+
+### 5.6 `regionctf_list` / `incomectf_list` / `regionrawdata_list` / `incomerawdata_list`
+
+Same nested shape as `ctfdata_list` / `rawdata_list`, with country rows
+replaced by `region × year` or `income_group × year` means (WB aggregate
+codes dropped, `var_count` / `nonna_count` dropped, `score` recomputed).
+Empty leaves stay empty. Built by `aggregate_data_list()`.
+
+### 5.7 `wbcountries`
+
+WB country classifications (218 × 6): `economy`, `country_code`,
+`income_group`, `lending_category`, `region_code`, `region`. Sub-Saharan
+Africa is split into AFE / AFW.
 
 ---
 
-## 6. Score Computation Functions
+## 6. Score Computation Functions (exported, `R/compute_scores.R`)
 
-Defined in `R/compute_scores.R`. All three are exported.
+All handle **arbitrary nesting depth** — a leaf is any `data.frame`.
 
-### `add_subcluster_score(tbl, id_cols = c("country_code", "country_name", "year"))`
-Appends `score`, `var_count`, `nonna_count` to a single subcluster CTF tibble.
+- `add_subcluster_score(tbl, id_cols = c("country_code","country_name","year"))`
+  — appends `score` / `var_count` / `nonna_count`. Zero-row and
+  zero-indicator inputs are handled (not errors).
+- `score_ctfdata_list(ctfdata_list, id_cols = ...)` — recurses over every leaf.
+- `compute_cluster_averages(ctfdata_list, id_cols = ...)` — recursive
+  equal-weight aggregation → `institutional_averages_tbl`.
 
-### `score_ctfdata_list(ctfdata_list, id_cols = ...)`
-Applies `add_subcluster_score()` to every leaf tibble in the nested list. Returns the enriched list.
+Group aggregation (`R/aggregate_groups.R`): `aggregate_data_list(data_list,
+group_col = c("region","income_group"), wbcountries)` — also recursive.
 
-### `compute_cluster_averages(ctfdata_list, id_cols = ...)`
-Takes a **scored** `ctfdata_list` (output of `score_ctfdata_list()`), computes cluster and overall scores, returns `institutional_averages_tbl`.
+Accessor (`R/extract_cliar_data.R`): `extract_cliar_data(variables, type =
+c("dynamic","static","raw"), id_vars = NULL)` — unchanged; still the raw-data
+router used by `build_rawdata_list()`.
 
 ---
 
 ## 7. Build Pipeline
 
-To fully rebuild all package data from scratch:
-
 ```r
-# Step 1: Generate all raw + CTF .rds files (writes to data-raw/output/)
+# 1. wbcountries + cgjr_taxonomy + cgjr_crosswalk
+#    (writes data-raw/output/cgjr_crosswalk_validation.csv; emits eligibility warnings)
 source("analysis/00-build_all_datasets.r")
 
-# Step 2: Combine into 4 lazyloaded objects (writes to data/)
+# 2. Assemble every lazyloaded object from the crosswalk
 source("analysis/01-combine-lazyload.R")
 
-# Step 3: Regenerate documentation
+# 3. Docs + check
 devtools::document()
-
-# Step 4: Check (target: 0 errors, 0 warnings, 0 notes)
-devtools::check()
+devtools::check()   # currently 0 errors / 0 warnings / 0 notes
 ```
 
-### `analysis/00-build_all_datasets.r`
-Sources all 13 data-raw scripts in chapter order. Opens with `devtools::load_all()`. Writes `.rds` files to `data-raw/output/`.
+`data-raw/source/`:
+- `00a-prepare-country-list.R` → `wbcountries` (from `data-raw/input/CLASS_2025_10_07.xlsx`)
+- `00b-cgjr-taxonomy-crosswalk.R` → `cgjr_taxonomy`, `cgjr_crosswalk`
 
-### `analysis/01-combine-lazyload.R`
-Reads all `.rds` files, assembles the 4 package objects, scores `ctfdata_list`, computes `institutional_averages_tbl`, calls `usethis::use_data(..., overwrite = TRUE)` for each.
-
-### `data-raw/source/` scripts (13 scripts)
-Each script builds `raw{x}_tbl`, `dynamic{x}_tbl`, `meta{x}_tbl` and saves them as `.rds` to `data-raw/output/`. They use `devtools::load_all()` (via `00-build_all_datasets.r`) so `extract_cliar_data()` is available.
+`data-raw/output/` is git-ignored (regenerated).
 
 ---
 
-## 8. Data Coverage Notes
-
-| Issue | Detail |
-|---|---|
-| **ASPIRE variables missing** | `wb_aspire_coverage` and `wb_aspire_adequacy_benefits` labelled `etl_source = "wdi"` but absent from `wdi_indicators`. They appear in neither raw nor CTF datasets. Handle gracefully in dashboard (show as unavailable). |
-| **PFM — no CTF dynamic** | All 27 PFM variables are not in `closeness_to_frontier_dynamic`. `ctfdata_list$center_of_government$public_financial_management` has only id columns. |
-| **SOE — no CTF dynamic** | All 5 OECD PMR variables are not in CTF dynamic. `ctfdata_list$sectors_service_delivery$soe_corporate_governance` has only id columns. |
-| **`rise_ee_4_3` — no CTF dynamic** | Only RISE variable missing from CTF dynamic. |
-| **OECD PMR — only 2 raw years** | 2018 and 2023 only. |
-| **GTMI — sparse** | `wb_gtmi_dcei`, `wb_gtmi_pfm_mis`, `wb_gtmi_psdi`: 1 year (2022). `wb_gtmi_cgsi`, `wb_gtmi_gtei`: 2 years (2020, 2022). |
-| **PEFA — assessment dates** | PEFA data are `assessment_date`-based, not calendar years. Coverage 2015–2025. |
-| **RISE — ends 2021** | Local file `RISE_20102021.dta` covers 2010–2021 only. |
-| **V-Dem — richest coverage** | 1990–2024, 35 years. |
-
----
-
-## 9. File Structure
-
-```
-cgjrdata/
-├── R/
-│   ├── extract_cliar_data.R   # Main exported function
-│   ├── compute_scores.R       # add_subcluster_score(), score_ctfdata_list(),
-│   │                          #   compute_cluster_averages()
-│   ├── data.R                 # Roxygen docs for 4 lazyloaded objects
-│   └── zzz.R                  # globalVariables()
-├── data/
-│   ├── rawdata_list.rda
-│   ├── ctfdata_list.rda
-│   ├── metadata_tbl.rda
-│   └── institutional_averages_tbl.rda
-├── data-raw/
-│   ├── input/
-│   │   └── RISE_20102021.dta  # Local RISE energy data (not in cliaretl)
-│   ├── output/                # .rds intermediates (gitignored)
-│   └── source/
-│       ├── 1.institutional_environment/
-│       │   ├── degree_of_integrity
-│       │   ├── transparency_and_accountability
-│       │   ├── justice_and_rule_of_law
-│       │   └── social_cohesion_norms_and_cooperation
-│       ├── 2.political_institutions/
-│       ├── 3.center_of_government/
-│       │   ├── public_financial_management
-│       │   ├── public_sector_hrm
-│       │   └── digital_and_data
-│       └── 4.sectors_or_service_delivery/
-│           ├── business_environment
-│           ├── service_delivery
-│           ├── soe_corporate_governance
-│           ├── labor_and_social_protection
-│           └── energy_and_environment
-├── analysis/
-│   ├── 00-build_all_datasets.r   # Sources all 13 data-raw scripts
-│   └── 01-combine-lazyload.R     # Assembles 4 lazyloaded objects
-├── tests/testthat/
-│   ├── test-extract_cliar_data.R # 33 tests
-│   └── test-compute-scores.R     # ~25 tests
-├── man/
-│   ├── extract_cliar_data.Rd
-│   ├── add_subcluster_score.Rd
-│   ├── score_ctfdata_list.Rd
-│   ├── compute_cluster_averages.Rd
-│   ├── rawdata_list.Rd
-│   ├── ctfdata_list.Rd
-│   ├── metadata_tbl.Rd
-│   └── institutional_averages_tbl.Rd
-├── copilot_logs/
-│   └── CONTEXT_FOR_CGJRAPP.md    # This file
-├── DESCRIPTION
-├── NAMESPACE
-└── renv.lock
-```
-
----
-
-## 10. DESCRIPTION / Dependencies
-
-```
-Package: cgjrdata
-Version: 0.0.0.9000
-License: MIT
-Imports:
-  cliaretl,
-  dplyr,
-  purrr
-Suggests:
-  testthat (>= 3.0.0)
-Config/testthat/edition: 3
-```
-
-`cliaretl` must be installed. It is an internal WB package. `renv` is used for reproducibility.
-
----
-
-## 11. Design Decisions for Dashboard Developer
-
-### Access pattern
-```r
-library(cgjrdata)
-
-# Overview page — country × year scorecard
-institutional_averages_tbl
-
-# Cluster-level drill-down (e.g. Institutional Environment)
-ctfdata_list$institutional_environment$degree_of_integrity
-# → each subcluster has: country_code, country_name, year, [indicators...],
-#                         score, var_count, nonna_count
-
-# Raw values for a specific indicator
-rawdata_list$institutional_environment$degree_of_integrity
-
-# Variable metadata (names, descriptions, sources)
-metadata_tbl |> dplyr::filter(subcluster == "Degree of Integrity")
-```
-
-### CTF scores are 0–1 (higher = better)
-All values in `ctfdata_list` are Closeness-to-Frontier scores normalised 0–1. Direction has already been corrected (e.g. corruption indicators are inverted). Raw values in `rawdata_list` are in original source units.
-
-### Suggested dashboard pages
-Based on the analytical framework, the dashboard likely needs:
-
-| Page | Primary data object |
-|---|---|
-| **Overview / Scorecard** | `institutional_averages_tbl` — one row per country × year |
-| **Cluster deep-dive** (×4) | `ctfdata_list[[cluster]]` — subcluster scores + individual indicators |
-| **Country profile** | Filter all objects to a single `country_code` |
-| **Indicator explorer** | `rawdata_list` + `metadata_tbl` |
-| **Benchmarking** | `ctfdata_list` — compare countries on a specific indicator |
-
-### Country filtering
-Use `country_code` (ISO 3-letter) as the primary filter key. `country_name` is a display label. The universe is the set of countries in `cliaretl::wb_country_list` (214 rows but deduplicate before joining — see Section 3).
-
-### Year filtering
-Coverage varies widely by indicator (see Section 8). `institutional_averages_tbl` will have sparse coverage in early years. Recommend defaulting to the most recent complete year.
-
-### Missing data / NAs
-All score columns use `na.rm = TRUE` — a country can still receive a cluster score even if some subclusters are missing. Use `nonna_count` from `ctfdata_list` to show users how many indicators contributed to a given score.
-
----
-
-## 12. Known Issues / Pending Work
+## 8. Known Issues / Pending Team Decisions
 
 | # | Issue | Status |
 |---|---|---|
-| 1 | `wb_aspire_coverage` and `wb_aspire_adequacy_benefits` have zero data coverage | ⚠️ Unresolved — handle as unavailable in dashboard |
-| 2 | `public_financial_management` and `soe_corporate_governance` CTF subclusters are empty (only id cols) | ⚠️ By design — these variables not in CTF dynamic dataset |
-| 3 | `data-raw/output/` `.rds` files not yet generated | ⏳ Run `00-build_all_datasets.r` |
-| 4 | `data/` not yet populated with 4 new `.rda` files | ⏳ Run `01-combine-lazyload.R` after step 3 |
-| 5 | `devtools::document()` not yet re-run with new roxygen | ⏳ Run after step 4 |
-| 6 | `devtools::check()` not yet run on final state | ⏳ Target: 0 errors, 0 warnings, 0 notes |
+| 1 | **PFM & SOE governance have no CTF-dynamic indicators.** All PFM (24) + 3 resolved SOE codes fail `benchmark_dynamic_indicator`. Both build as empty leaves. Raw data *is* available. | ⚠️ by design; dashboard shows "coming soon" |
+| 2 | **`digital_and_data`, `market_regulatory_institutions`, `service_delivery` are entirely `benchmark_dynamic_family_aggregate = "No"`.** Scored anyway (they are valid panel columns) but `validate_crosswalk()` warns. | ⚠️ team decision: score or treat as "coming soon"? |
+| 3 | **4 unresolved indicators** (no `cliaretl` code): "Criminal adjudication system is timely and effective" (JRL); "Scope of SOE", "Governance of SOE", "Use of command-and-control regulation" (SOE governance). | ⚠️ excluded; `variable = NA` in crosswalk |
+| 4 | **`wjp_rol_8_2` mislabel trap.** In this `cliaretl` its text = "criminal investigation system" (duplicates `wjp_rol_8_1`). The corrected standalone `wjp` pull is not available. | ⚠️ excluded row 13 of JRL |
+| 5 | **`wjp_rol_7_1`** ("People can access and afford civil justice"): in this `cliaretl` build the description is the narrow subfactor (looks corrected, not the Factor-7 composite the doc warns about). Included, flagged in `note`. | ⚠️ verify against `wjp` pull if available |
+| 6 | `wb_pefa_pi_2016_28` — `cliaretl` docstring appears copy-pasted from PI-27; verify contents. | ⚠️ raw only |
+| 7 | Region/income means: individual indicator columns can be `NaN` (all-NA group). `score` is coerced to `NA` but indicator columns are not. Pre-existing `aggregate_groups.R` behaviour. | minor |
+
+Full per-row detail: `data-raw/output/cgjr_crosswalk_validation.csv` (regenerate
+with the build) or `validate_crosswalk(cgjr_crosswalk)`.
 
 ---
 
-## 13. Test Suite Summary
+## 9. Test Suite
 
-### `test-extract_cliar_data.R` (33 tests)
-Covers: return type, dynamic/static/raw happy paths, NULL variables, warnings for unrecognised/absent variables, errors when nothing remains, custom `id_vars`, column ordering, `match.arg` validation.
+`tests/testthat/` — ~80 `test_that` blocks, all passing:
 
-### `test-compute-scores.R` (~25 tests)
-Covers:
-- `add_subcluster_score()`: column presence, correct `rowMeans` arithmetic, `var_count`, `nonna_count`, NaN → NA coercion, zero-indicator edge case, custom `id_cols`, single-indicator edge case, non-data-frame error
-- `score_ctfdata_list()`: list structure preserved, all leaves enriched, id columns untouched, non-list error
-- `compute_cluster_averages()`: tibble return, expected columns, Option A arithmetic (mean of subcluster scores), overall score arithmetic, NA (not NaN) when all-NA cluster, error when `score` column missing, unnamed list error, sort order, multi-year handling
+- `test-extract_cliar_data.R` (19) — the raw/dynamic/static accessor
+- `test-compute-scores.R` (26) — scoring incl. 3-level nesting + empty leaves
+- `test-aggregate-groups.R` (26) — region/income aggregation incl. nesting
+- `test-crosswalk.R` (9) — `validate_crosswalk()` + the builders + the shipped crosswalk
 
 ---
 
-## 14. Glossary
+## 10. Suggested Dashboard Pages
 
-| Term | Meaning |
+| Page | Primary object |
 |---|---|
-| CTF | Closeness to Frontier — 0-to-1 normalised score (1 = best practice frontier) |
-| Cluster | Top-level CGJR analytical grouping (4 total) |
-| Subcluster | Second-level grouping within a cluster (13 total) |
-| `rawdata_list` | Nested list of raw (un-normalised) indicator values |
-| `ctfdata_list` | Nested list of CTF-normalised indicator values + subcluster scores |
-| `metadata_tbl` | Flat variable catalogue with descriptions and source metadata |
-| `institutional_averages_tbl` | Aggregated scores at subcluster → cluster → overall level |
-| `cliaretl` | Internal WB R package supplying raw source datasets and CTF panels |
-| RISE | Regulatory Indicators for Sustainable Energy (World Bank) |
-| PEFA | Public Expenditure and Financial Accountability (World Bank) |
-| GTMI | GovTech Maturity Index (World Bank) |
-| V-Dem | Varieties of Democracy project |
-| WJP | World Justice Project Rule of Law Index |
-| OECD PMR | OECD Product Market Regulation indicators |
-| OECD EPL | OECD Employment Protection Legislation indicators |
-| WBL | Women, Business and the Law (World Bank) |
+| Overview / Scorecard | `institutional_averages_tbl` |
+| Cluster deep-dive (×4) | `ctfdata_list[[cluster]]` — subcluster scores + indicators; handle empty/flagged leaves per §5.3 |
+| Country profile | filter all objects to one `country_code` |
+| Indicator explorer | `rawdata_list` + `metadata_tbl` |
+| Benchmarking | `ctfdata_list`, `regionctf_list`, `incomectf_list` |
+
+- Filter key: `country_code` (ISO-3). `country_name` is display only.
+- `nonna_count` (in `ctfdata_list`) tells users how many indicators backed a score.
+- Default to the most recent year with good coverage.

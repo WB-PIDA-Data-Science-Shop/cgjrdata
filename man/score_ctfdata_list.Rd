@@ -2,7 +2,7 @@
 % Please edit documentation in R/compute_scores.R
 \name{score_ctfdata_list}
 \alias{score_ctfdata_list}
-\title{Enrich all subclusters in a ctfdata_list with score columns}
+\title{Enrich all leaf tibbles in a ctfdata_list with score columns}
 \usage{
 score_ctfdata_list(
   ctfdata_list,
@@ -10,8 +10,7 @@ score_ctfdata_list(
 )
 }
 \arguments{
-\item{ctfdata_list}{A named nested list structured as
-\code{list[[cluster]][[subcluster]]}, where each leaf is a tibble.}
+\item{ctfdata_list}{A named nested list whose leaves are tibbles.}
 
 \item{id_cols}{Passed through to \code{\link[=add_subcluster_score]{add_subcluster_score()}}.}
 }
@@ -19,9 +18,16 @@ score_ctfdata_list(
 The input list with all leaf tibbles enriched with score columns.
 }
 \description{
-Applies \code{\link[=add_subcluster_score]{add_subcluster_score()}} to every subcluster tibble in a nested
+Applies \code{\link[=add_subcluster_score]{add_subcluster_score()}} to every leaf tibble in a nested
 \code{ctfdata_list}, returning the same nested-list structure with \code{score},
 \code{var_count}, and \code{nonna_count} appended to each tibble.
+}
+\details{
+Nesting depth is arbitrary: two levels
+(\code{list[[cluster]][[subcluster]]}) for most of the taxonomy, three
+(\code{list[[cluster]][[subcluster]][[sub_subcluster]]}) for Public Financial
+Management. A leaf is any \code{data.frame}; everything else is a container that
+is recursed into.
 }
 \examples{
 \dontrun{

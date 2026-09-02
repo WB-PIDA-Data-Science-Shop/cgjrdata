@@ -3,52 +3,49 @@
 \docType{data}
 \name{ctfdata_list}
 \alias{ctfdata_list}
-\title{CTF dynamic scores — all chapters}
+\title{CTF dynamic scores — all clusters}
 \format{
 An object of class \code{list} of length 4.
 }
 \source{
-\link[cliaretl:closeness_to_frontier_dynamic]{cliaretl::closeness_to_frontier_dynamic}
+\link[cliaretl:closeness_to_frontier_dynamic]{cliaretl::closeness_to_frontier_dynamic} via \code{\link[=build_ctfdata_list]{build_ctfdata_list()}}.
 }
 \usage{
 ctfdata_list
 }
 \description{
-A nested list containing Closeness-to-Frontier (CTF) dynamic scores for
-every subcluster in the Country Jobs and Growth Report (CGJR) analytical
-framework. Values are drawn from \link[cliaretl:closeness_to_frontier_dynamic]{cliaretl::closeness_to_frontier_dynamic}
-via \code{\link[=extract_cliar_data]{extract_cliar_data()}} with \code{type = "dynamic"}.
+A nested list of Closeness-to-Frontier (CTF) dynamic scores (0–1, higher =
+closer to best practice), one leaf per node of \code{cgjr_taxonomy}. Values are
+sliced from \link[cliaretl:closeness_to_frontier_dynamic]{cliaretl::closeness_to_frontier_dynamic} by
+\code{\link[=build_ctfdata_list]{build_ctfdata_list()}}, driven by \code{cgjr_crosswalk}.
 
-The list has the same structure as \code{rawdata_list}:
-\code{ctfdata_list[[cluster]][[subcluster]]}. The four top-level clusters and
-their subclusters are:
-
-\describe{
-\item{\code{institutional_environment}}{\code{degree_of_integrity},
-\code{transparency_and_accountability}, \code{justice_and_rule_of_law},
-\code{social_cohesion_norms_and_cooperation}}
-\item{\code{political_institutions}}{\code{political_institutions}}
-\item{\code{center_of_government}}{\code{public_financial_management},
-\code{public_sector_hrm}, \code{digital_and_data}}
-\item{\code{sectors_service_delivery}}{\code{business_environment},
-\code{service_delivery}, \code{soe_corporate_governance},
-\code{labor_and_social_protection}, \code{energy_and_environment}}
-}
-
-Each element is a tibble with columns \code{country_code}, \code{country_name},
-\code{year}, one CTF-scaled column per indicator, and three summary columns
-appended by \code{\link[=score_ctfdata_list]{score_ctfdata_list()}}:
+Same hierarchy as \code{rawdata_list} (two levels, three for Public Financial
+Management). Each leaf is a tibble with \code{country_code}, \code{country_name},
+\code{year}, one CTF column per \strong{dynamic-panel-eligible} indicator, and three
+summary columns appended by \code{\link[=score_ctfdata_list]{score_ctfdata_list()}}:
 
 \describe{
-\item{\code{score}}{Row mean of all indicator columns (\code{na.rm = TRUE}). \code{NA}
+\item{\code{score}}{Row mean of all indicator columns (\code{na.rm = TRUE}); \code{NA}
 when every indicator is \code{NA} for that row.}
-\item{\code{var_count}}{Total number of indicator columns in the subcluster
-(constant for every row).}
-\item{\code{nonna_count}}{Number of non-\code{NA} indicator values used to compute
-\code{score} for each row.}
+\item{\code{var_count}}{Number of indicator columns in the leaf.}
+\item{\code{nonna_count}}{Number of non-\code{NA} indicator values used per row.}
 }
+
+\strong{Empty leaves.} A leaf whose indicators are all dynamic-ineligible is a
+zero-row tibble (\code{score}, \code{var_count}, \code{nonna_count} present but empty).
+Under the current \code{cliaretl} this is the case for all four Public Financial
+Management sub-subclusters and for \code{soe_governance} — none of their
+indicators are columns of \code{closeness_to_frontier_dynamic}.
+
+\strong{Family-aggregate caveat.} Every indicator in \code{digital_and_data},
+\code{market_regulatory_institutions} and \code{service_delivery} is flagged
+\code{benchmark_dynamic_family_aggregate = "No"} in
+\link[cliaretl:db_variables_final]{cliaretl::db_variables_final}. They are included here (they are valid
+panel columns) but \code{\link[=validate_crosswalk]{validate_crosswalk()}} warns about them; treat those
+three subcluster \code{score} values with caution. See \code{metadata_tbl$family_aggregate_eligible}.
 }
 \seealso{
-\code{rawdata_list}, \code{metadata_tbl}, \code{institutional_averages_tbl}
+\code{rawdata_list}, \code{metadata_tbl}, \code{institutional_averages_tbl},
+\code{cgjr_crosswalk}, \code{\link[=validate_crosswalk]{validate_crosswalk()}}
 }
 \keyword{datasets}

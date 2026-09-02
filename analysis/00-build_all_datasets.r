@@ -1,33 +1,25 @@
 ##############################################################################
-########################## BUILD ALL DATASETS ################################
+########################## BUILD SOURCE DATA OBJECTS #########################
 ##############################################################################
-# Sources every data-raw script in chapter order. Run this from the package
-# root after loading the package (devtools::load_all()) to regenerate all
-# .rda files in data/.
+# Under the new CGJR taxonomy the package no longer has one hand-written
+# script per subcluster. All indicator -> cluster/subcluster assignments live
+# in a single crosswalk table; this script just (re)builds the two inputs the
+# assembly step needs:
+#
+#   wbcountries    — World Bank country classifications (regions, income)
+#   cgjr_taxonomy  — the leaf-node hierarchy of the new taxonomy
+#   cgjr_crosswalk — every indicator's placement in that hierarchy, with its
+#                    resolved `cliaretl` variable code
+#
+# Run from the package root, then run analysis/01-combine-lazyload.R.
 ##############################################################################
 
 devtools::load_all()
 
-library(dplyr)
-library(haven)
+# --- 1. World Bank country list (regions with AFE/AFW split, income groups) --
+source("data-raw/source/00a-prepare-country-list.R")
 
-# --- 1. Institutional Environment ----------------------------------------
-source("data-raw/source/1.institutional_environment/degree_of_integrity.r")
-source("data-raw/source/1.institutional_environment/transparency_and_accountability.r")
-source("data-raw/source/1.institutional_environment/justice_and_rule_of_law.r")
-source("data-raw/source/1.institutional_environment/social_cohesion_norms_and_cooperation.r")
-
-# --- 2. Political Institutions --------------------------------------------
-source("data-raw/source/2.political_institutions/political_institutions.r")
-
-# --- 3. Center of Government ----------------------------------------------
-source("data-raw/source/3.center_of_government/public_financial_management.r")
-source("data-raw/source/3.center_of_government/public_sector_hrm.r")
-source("data-raw/source/3.center_of_government/digital_and_data.r")
-
-# --- 4. Sectors / Service Delivery ----------------------------------------
-source("data-raw/source/4.sectors_or_service_delivery/business_environment.r")
-source("data-raw/source/4.sectors_or_service_delivery/service_delivery.r")
-source("data-raw/source/4.sectors_or_service_delivery/soe_governance.r")
-source("data-raw/source/4.sectors_or_service_delivery/labor_and_social_protection.r")
-source("data-raw/source/4.sectors_or_service_delivery/energy_and_environment.r")
+# --- 2. CGJR taxonomy + indicator crosswalk --------------------------------
+#     Emits eligibility warnings and writes
+#     data-raw/output/cgjr_crosswalk_validation.csv for review.
+source("data-raw/source/00b-cgjr-taxonomy-crosswalk.R")

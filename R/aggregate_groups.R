@@ -66,6 +66,15 @@ aggregate_tbl_by_group <- function(
   drop_cols <- intersect(names(tbl), c(id_cols, score_drop))
   tbl <- tbl[, setdiff(names(tbl), drop_cols), drop = FALSE]
 
+  # Empty leaf (e.g. a "coming soon" subcluster): return an empty but
+  # correctly-shaped tibble rather than erroring.
+  if (nrow(tbl) == 0L) {
+    shell <- tbl[, intersect(names(tbl), c(group_cols, "year")), drop = FALSE]
+    for (gc in setdiff(c(group_cols, "year"), names(shell))) shell[[gc]] <- character(0)
+    shell[["score"]] <- numeric(0)
+    return(dplyr::as_tibble(shell))
+  }
+
   # Remove rows where any group column is NA (WB aggregate codes)
   for (gc in group_cols) {
     tbl <- tbl[!is.na(tbl[[gc]]), , drop = FALSE]
@@ -96,9 +105,11 @@ aggregate_tbl_by_group <- function(
 
 #' Aggregate a nested data list to region or income-group averages
 #'
-#' Takes a nested list structured as `list[[cluster]][[subcluster]]` (either
-#' `ctfdata_list` or `rawdata_list`) and produces a parallel list where each
-#' country-level leaf tibble has been replaced by a group-average tibble.
+#' Takes a nested list (either `ctfdata_list` or `rawdata_list`) and produces
+#' a parallel list of the same shape where each country-level leaf tibble has
+#' been replaced by a group-average tibble. Nesting depth is arbitrary — a
+#' leaf is any `data.frame`, and the three-level Public Financial Management
+#' branch is handled the same way as the two-level subclusters.
 #'
 #' **Aggregation logic (per subcluster):**
 #'
@@ -144,7 +155,7 @@ aggregate_tbl_by_group <- function(
 #' @importFrom dplyr where
 #' @export
 aggregate_data_list <- function(data_list, group_col, wbcountries) {
-  stopifnot(is.list(data_list))
+  stopifnot(is.list(data_list), !is.data.frame(data_list))
   stopifnot(
     is.character(group_col), length(group_col) == 1L,
     group_col %in% c("region", "income_group")
@@ -157,11 +168,8 @@ aggregate_data_list <- function(data_list, group_col, wbcountries) {
     "income_group"
   }
 
-  lapply(data_list, function(cluster) {
-    stopifnot(is.list(cluster))
-    lapply(cluster, function(subcluster) {
-      enriched <- join_wb_classifications(subcluster, wbcountries)
-      aggregate_tbl_by_group(enriched, group_cols = group_cols)
-    })
+  .cgjr_map_leaves(data_list, function(leaf) {
+    enriched <- join_wb_classifications(leaf, wbcountries)
+    aggregate_tbl_by_group(enriched, group_cols = group_cols)
   })
 }

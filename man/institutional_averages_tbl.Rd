@@ -3,29 +3,25 @@
 \docType{data}
 \name{institutional_averages_tbl}
 \alias{institutional_averages_tbl}
-\title{Subcluster, cluster and overall CTF score averages}
+\title{Cluster and overall CTF score averages}
 \format{
-A tibble with one row per \verb{country_code × country_name × year} and
-the following columns:
+A tibble with one row per \verb{country_code × country_name × year} and:
 \describe{
 \item{\code{country_code}}{ISO 3-letter country code.}
 \item{\code{country_name}}{Country name.}
 \item{\code{year}}{Calendar year.}
-\item{\code{institutional_environment_score}}{Mean of the four Institutional
-Environment subcluster scores: \code{degree_of_integrity},
-\code{transparency_and_accountability}, \code{justice_and_rule_of_law},
-\code{social_cohesion_norms_and_cooperation}.}
-\item{\code{political_institutions_score}}{Score for the Political
-Institutions cluster (single subcluster).}
-\item{\code{center_of_government_score}}{Mean of the three Center of
-Government subcluster scores: \code{public_financial_management},
-\code{public_sector_hrm}, \code{digital_and_data}.}
-\item{\code{sectors_service_delivery_score}}{Mean of the five Sectors /
-Service Delivery subcluster scores: \code{business_environment},
-\code{service_delivery}, \code{soe_corporate_governance},
-\code{labor_and_social_protection}, \code{energy_and_environment}.}
-\item{\code{overall_score}}{Mean of the four cluster scores above
-(\code{na.rm = TRUE}).}
+\item{\code{institutional_environment_score}}{Mean of the Degree of Integrity,
+Transparency & Accountability, and Justice & Rule of Law subcluster
+scores.}
+\item{\code{core_governance_functions_score}}{Mean of the Public Financial
+Management, Public Sector HRM and Digital & Data subcluster scores.
+Public Financial Management is currently empty and does not contribute.}
+\item{\code{beyond_core_governance_functions_score}}{Mean of the Market
+Regulatory Institutions, Service Delivery and SOE Governance subcluster
+scores. SOE Governance is currently empty and does not contribute.}
+\item{\code{context_score}}{Mean of the Political Institutions & Social
+Cohesion and Social Cohesion, Norms & Cooperation subcluster scores.}
+\item{\code{overall_score}}{Mean of the four cluster scores (\code{na.rm = TRUE}).}
 }
 }
 \source{
@@ -35,24 +31,22 @@ Derived from \code{ctfdata_list} via \code{\link[=compute_cluster_averages]{comp
 institutional_averages_tbl
 }
 \description{
-A wide tibble containing aggregated Closeness-to-Frontier (CTF) scores at
-the subcluster, cluster and overall level for every
-\verb{country_code × country_name × year} combination present in
-\code{ctfdata_list}.
+A wide tibble of aggregated Closeness-to-Frontier scores at the cluster and
+overall level, one row per \verb{country_code × country_name × year} present in
+\code{ctfdata_list}. Produced by \code{\link[=compute_cluster_averages]{compute_cluster_averages()}}.
 
-\strong{Aggregation hierarchy:}
+\strong{Aggregation (equal weight per child at every level):}
 \enumerate{
-\item \strong{Subcluster score} (\code{score} column within each leaf of \code{ctfdata_list}):
-row mean of all CTF indicator columns for that subcluster
-(\code{na.rm = TRUE}). Computed by \code{\link[=add_subcluster_score]{add_subcluster_score()}}.
-\item \strong{Cluster score}: mean of its constituent subcluster scores
-(equal weight per subcluster, \code{na.rm = TRUE}). Computed by
-\code{\link[=compute_cluster_averages]{compute_cluster_averages()}}.
-\item \strong{Overall score}: mean of the four cluster scores (\code{na.rm = TRUE}).
+\item Leaf \code{score} = row mean of that leaf's CTF indicator columns
+(\code{na.rm = TRUE}), from \code{\link[=add_subcluster_score]{add_subcluster_score()}}.
+\item A branch's score = mean of its immediate children's scores. For Public
+Financial Management this is the mean of its four sub-subcluster scores;
+empty leaves contribute nothing.
+\item Cluster score = mean of its subcluster (or branch) scores.
+\item \code{overall_score} = mean of the cluster scores (\code{na.rm = TRUE}).
 }
 }
 \seealso{
-\code{ctfdata_list}, \code{\link[=add_subcluster_score]{add_subcluster_score()}}, \code{\link[=score_ctfdata_list]{score_ctfdata_list()}},
-\code{\link[=compute_cluster_averages]{compute_cluster_averages()}}
+\code{ctfdata_list}, \code{\link[=score_ctfdata_list]{score_ctfdata_list()}}, \code{\link[=compute_cluster_averages]{compute_cluster_averages()}}
 }
 \keyword{datasets}

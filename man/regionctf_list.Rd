@@ -5,41 +5,26 @@
 \alias{regionctf_list}
 \title{CTF dynamic scores aggregated to World Bank region}
 \format{
-A nested list \verb{[[cluster]][[subcluster]]}. Each leaf tibble contains:
-\describe{
-\item{\code{region}}{Full World Bank region name.}
-\item{\code{region_code}}{Three-letter WB region code (e.g. \code{"AFE"}, \code{"ECA"}).}
-\item{\code{year}}{Calendar year.}
-\item{\verb{<indicator columns>}}{Region-mean of each CTF indicator
-(\code{na.rm = TRUE}).}
-\item{\code{score}}{Row mean of the region-averaged indicator columns
-(\code{na.rm = TRUE}); \code{NA} when all indicators are \code{NA}.}
-}
+A nested list matching \code{ctfdata_list}. Each populated leaf tibble
+has \code{region}, \code{region_code}, \code{year}, region-mean indicator columns, and a
+recomputed \code{score}.
 }
 \source{
-Derived from \code{ctfdata_list} and \code{wbcountries} via
-\code{\link[=aggregate_data_list]{aggregate_data_list()}}.
+Derived from \code{ctfdata_list} and \code{wbcountries} via \code{\link[=aggregate_data_list]{aggregate_data_list()}}.
 }
 \usage{
 regionctf_list
 }
 \description{
-A nested list with the same cluster/subcluster structure as \code{ctfdata_list}
-(\code{list[[cluster]][[subcluster]]}), but with country-level rows replaced by
-World Bank region-level averages.
+\code{ctfdata_list} with country-level rows replaced by World Bank region-level
+averages, same nested taxonomy structure. Produced by
+\code{\link[=aggregate_data_list]{aggregate_data_list()}}.
 
-\strong{Aggregation logic (per subcluster):}
-\enumerate{
-\item World Bank classification columns (\code{region}, \code{region_code}) are joined
-onto \code{ctfdata_list} via \code{country_code} using \code{\link[=aggregate_data_list]{aggregate_data_list()}}.
-\item Rows for WB aggregate codes (e.g. \code{"WLD"}, \code{"SSA"}) that have no match
-in \code{wbcountries} are dropped.
-\item For each \verb{region × year} group, every CTF indicator column is averaged
-across countries (\code{na.rm = TRUE}).
-\item \code{score} is recomputed as the row mean of the resulting averaged indicator
-columns (\code{na.rm = TRUE}); \code{NaN} is coerced to \code{NA}.
-\item \code{var_count} and \code{nonna_count} are dropped (not meaningful at group level).
-}
+\strong{Per leaf:} WB classification columns are joined via \code{country_code}; rows
+for WB aggregate codes with no match in \code{wbcountries} are dropped; every
+numeric indicator column is averaged within \verb{region × year}
+(\code{na.rm = TRUE}); \code{score} is recomputed as the row mean of those averages;
+\code{var_count} / \code{nonna_count} are dropped. Empty leaves stay empty.
 }
 \seealso{
 \code{ctfdata_list}, \code{wbcountries}, \code{\link[=aggregate_data_list]{aggregate_data_list()}}

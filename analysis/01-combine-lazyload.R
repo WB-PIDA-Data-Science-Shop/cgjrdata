@@ -1,157 +1,70 @@
 ##############################################################################
-################### COMBINE OUTPUTS INTO LAZYLOADED LISTS ###################
+################### COMBINE OUTPUTS INTO LAZYLOADED OBJECTS #################
 ##############################################################################
-# Reads all .rds files written by the data-raw/source scripts and assembles
-# eight package-level objects:
+# Assembles every lazyloaded package object from the CGJR crosswalk
+# (`cgjr_taxonomy` + `cgjr_crosswalk`) and `cliaretl`. No per-subcluster
+# intermediates are read — the crosswalk is the single source of truth.
 #
-#   rawdata_list             — nested list of raw source panels, keyed by
-#                              cluster / subcluster
-#   ctfdata_list             — nested list of CTF dynamic panels, same
-#                              structure; each subcluster tibble is enriched
-#                              with score, var_count, nonna_count columns
-#   metadata_tbl             — single combined metadata tibble (all
-#                              subclusters row-bound)
-#   institutional_averages_tbl — wide tibble of subcluster, cluster and
-#                              overall CTF scores per country_code × year
-#   regionctf_list           — ctfdata_list aggregated to WB region × year
-#   incomectf_list           — ctfdata_list aggregated to income group × year
-#   regionrawdata_list       — rawdata_list aggregated to WB region × year
-#   incomerawdata_list       — rawdata_list aggregated to income group × year
+#   rawdata_list               — nested raw source panels (taxonomy shape)
+#   ctfdata_list               — nested CTF dynamic panels (taxonomy shape),
+#                                each leaf enriched with score / var_count /
+#                                nonna_count
+#   metadata_tbl               — one row per taxonomy indicator + catalogue
+#                                metadata + eligibility flags
+#   institutional_averages_tbl — wide cluster + overall CTF scores per
+#                                country_code x country_name x year
+#   regionctf_list / incomectf_list       — ctfdata_list by WB region / income
+#   regionrawdata_list / incomerawdata_list — rawdata_list by WB region / income
 #
-# Run this script after 00-build_all_datasets.r has populated data-raw/output/.
+# Run after analysis/00-build_all_datasets.r.
 ##############################################################################
 
 library(dplyr)
 devtools::load_all()
 here::i_am("analysis/01-combine-lazyload.R")
-out <- function(...) here::here("data-raw", "output", ...)
 
 # ============================================================================
-# 1.  rawdata_list
+# 1.  Nested raw + CTF data lists (built directly from the crosswalk)
 # ============================================================================
-rawdata_list <- list(
-  institutional_environment = list(
-    degree_of_integrity              = readRDS(out("rawdoi_tbl.rds")),
-    transparency_and_accountability  = readRDS(out("rawta_tbl.rds")),
-    justice_and_rule_of_law          = readRDS(out("rawjrl_tbl.rds")),
-    social_cohesion_norms_and_cooperation = readRDS(out("rawscnc_tbl.rds"))
-  ),
-  political_institutions = list(
-    political_institutions           = readRDS(out("rawpol_tbl.rds"))
-  ),
-  center_of_government = list(
-    public_financial_management      = readRDS(out("rawpfm_tbl.rds")),
-    public_sector_hrm                = readRDS(out("rawhrm_tbl.rds")),
-    digital_and_data                 = readRDS(out("rawdigital_tbl.rds"))
-  ),
-  sectors_service_delivery = list(
-    business_environment             = readRDS(out("rawbe_tbl.rds")),
-    service_delivery                 = readRDS(out("rawsd_tbl.rds")),
-    soe_corporate_governance         = readRDS(out("rawsoe_tbl.rds")),
-    labor_and_social_protection      = readRDS(out("rawlab_tbl.rds")),
-    energy_and_environment           = readRDS(out("rawee_tbl.rds"))
-  )
-)
+rawdata_list <- build_rawdata_list(cgjr_crosswalk, cgjr_taxonomy)
+ctfdata_list <- build_ctfdata_list(cgjr_crosswalk, cgjr_taxonomy)  # warns on ineligible rows
 
 # ============================================================================
-# 2.  ctfdata_list
+# 2.  Enrich ctfdata_list with subcluster scores
 # ============================================================================
-ctfdata_list <- list(
-  institutional_environment = list(
-    degree_of_integrity              = readRDS(out("dynamicdoi_tbl.rds")),
-    transparency_and_accountability  = readRDS(out("dynamicta_tbl.rds")),
-    justice_and_rule_of_law          = readRDS(out("dynamicjrl_tbl.rds")),
-    social_cohesion_norms_and_cooperation = readRDS(out("dynamicscnc_tbl.rds"))
-  ),
-  political_institutions = list(
-    political_institutions           = readRDS(out("dynamicpol_tbl.rds"))
-  ),
-  center_of_government = list(
-    public_financial_management      = readRDS(out("dynamicpfm_tbl.rds")),
-    public_sector_hrm                = readRDS(out("dynamichrm_tbl.rds")),
-    digital_and_data                 = readRDS(out("dynamicdigital_tbl.rds"))
-  ),
-  sectors_service_delivery = list(
-    business_environment             = readRDS(out("dynamicbe_tbl.rds")),
-    service_delivery                 = readRDS(out("dynamicsd_tbl.rds")),
-    soe_corporate_governance         = readRDS(out("dynamicsoe_tbl.rds")),
-    labor_and_social_protection      = readRDS(out("dynamiclab_tbl.rds")),
-    energy_and_environment           = readRDS(out("dynamicee_tbl.rds"))
-  )
-)
-
-# ============================================================================
-# 3.  metadata_tbl
-# ============================================================================
-metadata_tbl <- Reduce(
-  "rbind",
-  list(
-    # Institutional Environment
-    readRDS(out("metadoi_tbl.rds")),
-    readRDS(out("metata_tbl.rds")),
-    readRDS(out("metajrl_tbl.rds")),
-    readRDS(out("metascnc_tbl.rds")),
-    # Political Institutions
-    readRDS(out("metapol_tbl.rds")),
-    # Center of Government
-    readRDS(out("metapfm_tbl.rds")),
-    readRDS(out("metahrm_tbl.rds")),
-    readRDS(out("metadigital_tbl.rds")),
-    # Sectors / Service Delivery
-    readRDS(out("metabe_tbl.rds")),
-    readRDS(out("metasd_tbl.rds")),
-    readRDS(out("metasoe_tbl.rds")),
-    readRDS(out("metalab_tbl.rds")),
-    readRDS(out("metaee_tbl.rds"))
-  )
-)
-
-# ============================================================================
-# 4.  Enrich ctfdata_list with subcluster scores
-# ============================================================================
-# Each leaf tibble gets three appended columns:
 #   score       — rowMeans of indicator cols (na.rm = TRUE); NA when all NA
-#   var_count   — total number of indicator columns (constant per subcluster)
+#   var_count   — number of indicator columns (constant per leaf)
 #   nonna_count — number of non-NA indicator values used per row
 ctfdata_list <- score_ctfdata_list(ctfdata_list)
 
 # ============================================================================
-# 5.  institutional_averages_tbl
+# 3.  metadata_tbl
 # ============================================================================
-# Wide tibble: one row per country_code × country_name × year
-# Cluster score = mean of its subclusters' scores (equal-weight, na.rm = TRUE)
-# Overall score = mean of the four cluster scores (na.rm = TRUE)
+metadata_tbl <- build_metadata_tbl(cgjr_crosswalk, cgjr_taxonomy)
+
+# ============================================================================
+# 4.  institutional_averages_tbl
+# ============================================================================
+# Cluster score = recursive equal-weight mean of child scores
+# Overall score = mean of the cluster scores (na.rm = TRUE)
 institutional_averages_tbl <- compute_cluster_averages(ctfdata_list)
+
+# ============================================================================
+# 5.  Region and income-group aggregated lists
+# ============================================================================
+regionctf_list     <- aggregate_data_list(ctfdata_list, "region",       wbcountries)
+incomectf_list     <- aggregate_data_list(ctfdata_list, "income_group", wbcountries)
+regionrawdata_list <- aggregate_data_list(rawdata_list, "region",       wbcountries)
+incomerawdata_list <- aggregate_data_list(rawdata_list, "income_group", wbcountries)
 
 # ============================================================================
 # 6.  Save as package lazyload data
 # ============================================================================
-usethis::use_data(rawdata_list,             overwrite = TRUE)
-usethis::use_data(ctfdata_list,             overwrite = TRUE)
-usethis::use_data(metadata_tbl,             overwrite = TRUE)
+usethis::use_data(rawdata_list,               overwrite = TRUE)
+usethis::use_data(ctfdata_list,               overwrite = TRUE)
+usethis::use_data(metadata_tbl,               overwrite = TRUE)
 usethis::use_data(institutional_averages_tbl, overwrite = TRUE)
-
-# ============================================================================
-# 7.  Region and income-group aggregated CTF lists
-# ============================================================================
-# For each subcluster tibble:
-#   - WB aggregate codes (WLD, SSA, etc.) are dropped (no match in wbcountries)
-#   - Indicator columns are averaged across countries within group × year
-#   - score is recomputed as rowMeans of the averaged indicator columns
-#   - var_count / nonna_count are dropped (not meaningful at group level)
-regionctf_list  <- aggregate_data_list(ctfdata_list, "region",       wbcountries)
-incomectf_list  <- aggregate_data_list(ctfdata_list, "income_group", wbcountries)
-
-# ============================================================================
-# 8.  Region and income-group aggregated raw data lists
-# ============================================================================
-regionrawdata_list  <- aggregate_data_list(rawdata_list, "region",       wbcountries)
-incomerawdata_list  <- aggregate_data_list(rawdata_list, "income_group", wbcountries)
-
-# ============================================================================
-# 9.  Save group-aggregated lists
-# ============================================================================
-usethis::use_data(regionctf_list,     overwrite = TRUE)
-usethis::use_data(incomectf_list,     overwrite = TRUE)
-usethis::use_data(regionrawdata_list, overwrite = TRUE)
-usethis::use_data(incomerawdata_list, overwrite = TRUE)
+usethis::use_data(regionctf_list,             overwrite = TRUE)
+usethis::use_data(incomectf_list,             overwrite = TRUE)
+usethis::use_data(regionrawdata_list,         overwrite = TRUE)
+usethis::use_data(incomerawdata_list,         overwrite = TRUE)

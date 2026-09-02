@@ -29,9 +29,11 @@ A named nested list with the same cluster/subcluster structure as
 group-mean indicator columns, and a recomputed \code{score} column.
 }
 \description{
-Takes a nested list structured as \code{list[[cluster]][[subcluster]]} (either
-\code{ctfdata_list} or \code{rawdata_list}) and produces a parallel list where each
-country-level leaf tibble has been replaced by a group-average tibble.
+Takes a nested list (either \code{ctfdata_list} or \code{rawdata_list}) and produces
+a parallel list of the same shape where each country-level leaf tibble has
+been replaced by a group-average tibble. Nesting depth is arbitrary — a
+leaf is any \code{data.frame}, and the three-level Public Financial Management
+branch is handled the same way as the two-level subclusters.
 }
 \details{
 \strong{Aggregation logic (per subcluster):}

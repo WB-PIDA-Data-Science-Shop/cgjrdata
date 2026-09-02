@@ -3,54 +3,44 @@
 \docType{data}
 \name{metadata_tbl}
 \alias{metadata_tbl}
-\title{Variable metadata — all chapters}
+\title{Variable metadata — all clusters}
 \format{
-A tibble with one row per indicator and the following columns
-(all fields from \link[cliaretl:db_variables_final]{cliaretl::db_variables_final} plus four added by
-this package):
+A tibble with one row per crosswalk row. Key columns:
 \describe{
-\item{var_name}{Human-readable indicator name.}
-\item{api_id}{API identifier (where available).}
-\item{variable}{Snake-case variable name used as column names in
-\code{rawdata_list} and \code{ctfdata_list}.}
-\item{var_level}{Level of aggregation (\code{"indicator"} or \code{"aggregate"}).}
-\item{family_var}{Short identifier for the indicator family.}
-\item{family_name}{Full name of the indicator family.}
-\item{family_order}{Display order of the family.}
-\item{processing}{Any processing applied to the raw value (e.g.
-\code{"Invert. 100 - X"}).}
-\item{description}{Full variable description from the source.}
-\item{description_short}{One-sentence description.}
-\item{source}{Data source name.}
-\item{benchmarked_ctf}{Whether the variable is benchmarked in the CTF
-framework (\code{"Yes"} / \code{"No"}).}
-\item{benchmark_static_family_aggregate_download}{Included in static
-family aggregate download (\code{"Yes"} / \code{"No"}).}
-\item{benchmark_dynamic_indicator}{Included in dynamic indicator
-benchmark (\code{"Yes"} / \code{"No"}).}
-\item{benchmark_dynamic_family_aggregate}{Included in dynamic family
-aggregate benchmark (\code{"Yes"} / \code{"No"}).}
-\item{rank_id}{Numeric rank identifier.}
-\item{etl_source}{Key identifying the raw source dataset used in ETL.}
-\item{cluster}{CGJR chapter name.}
-\item{cluster_num}{CGJR chapter number (1–4).}
-\item{subcluster}{CGJR subcluster name.}
-\item{subcluster_num}{CGJR subcluster number within the chapter.}
+\item{\code{cluster}, \code{subcluster}, \code{sub_subcluster}}{snake_case taxonomy keys.}
+\item{\code{cluster_num}, \code{subcluster_num}, \code{sub_subcluster_num}}{Numeric order.}
+\item{\code{cluster_name}, \code{subcluster_name}, \code{sub_subcluster_name}}{Display names.}
+\item{\code{indicator}, \code{indicator_num}}{Indicator name and position.}
+\item{\code{source}}{Source as stated in the taxonomy; \code{source_cliar} is the
+catalogue's own source string.}
+\item{\code{variable}}{Resolved \code{cliaretl} code, or \code{NA}.}
+\item{\code{note}}{Resolution caveat from the crosswalk.}
+\item{\code{var_name}, \code{description}, \code{description_short}, \code{family_name},
+\code{etl_source}, \code{benchmarked_ctf}, \code{benchmark_dynamic_indicator},
+\code{benchmark_dynamic_family_aggregate}, ...}{Columns carried from
+\link[cliaretl:db_variables_final]{cliaretl::db_variables_final} (\code{NA} for unresolved rows).}
+\item{\code{dynamic_indicator_eligible}}{\code{TRUE} iff
+\code{benchmark_dynamic_indicator == "Yes"} — i.e. the variable can enter
+the dynamic panel.}
+\item{\code{family_aggregate_eligible}}{\code{TRUE} iff
+\code{benchmark_dynamic_family_aggregate} is \code{"Yes"} or \code{"Partial"} — i.e.
+\code{cliaretl} sanctions averaging it into a subcluster score.}
 }
 }
 \source{
-\link[cliaretl:db_variables_final]{cliaretl::db_variables_final}
+\code{cgjr_crosswalk} + \link[cliaretl:db_variables_final]{cliaretl::db_variables_final}.
 }
 \usage{
 metadata_tbl
 }
 \description{
-A single combined tibble containing variable-level metadata for every
-indicator included in the CGJR analytical framework. Created by
-row-binding the per-subcluster metadata tables produced by the data-raw
-scripts.
+One row per \code{cgjr_crosswalk} assignment, joined to \code{cgjr_taxonomy} and to
+\link[cliaretl:db_variables_final]{cliaretl::db_variables_final}. Every crosswalk row is kept, including
+unresolved indicators (\code{variable == NA}) and dynamic-ineligible ones, so
+the table is a complete record of the taxonomy. Produced by
+\code{\link[=build_metadata_tbl]{build_metadata_tbl()}}.
 }
 \seealso{
-\code{rawdata_list}, \code{ctfdata_list}
+\code{cgjr_crosswalk}, \code{ctfdata_list}, \code{\link[=build_metadata_tbl]{build_metadata_tbl()}}
 }
 \keyword{datasets}

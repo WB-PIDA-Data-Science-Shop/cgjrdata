@@ -5,31 +5,19 @@
 \alias{incomectf_list}
 \title{CTF dynamic scores aggregated to World Bank income group}
 \format{
-A nested list \verb{[[cluster]][[subcluster]]}. Each leaf tibble contains:
-\describe{
-\item{\code{income_group}}{World Bank income classification: \code{"Low income"},
-\code{"Lower middle income"}, \code{"Upper middle income"}, or \code{"High income"}.}
-\item{\code{year}}{Calendar year.}
-\item{\verb{<indicator columns>}}{Income-group mean of each CTF indicator
-(\code{na.rm = TRUE}).}
-\item{\code{score}}{Row mean of the income-group-averaged indicator columns
-(\code{na.rm = TRUE}); \code{NA} when all indicators are \code{NA}.}
-}
+A nested list matching \code{ctfdata_list}. Each populated leaf tibble
+has \code{income_group}, \code{year}, income-group-mean indicator columns, and a
+recomputed \code{score}.
 }
 \source{
-Derived from \code{ctfdata_list} and \code{wbcountries} via
-\code{\link[=aggregate_data_list]{aggregate_data_list()}}.
+Derived from \code{ctfdata_list} and \code{wbcountries} via \code{\link[=aggregate_data_list]{aggregate_data_list()}}.
 }
 \usage{
 incomectf_list
 }
 \description{
-A nested list with the same cluster/subcluster structure as \code{ctfdata_list},
-but with country-level rows replaced by World Bank income-group averages.
-
-\strong{Aggregation logic:} identical to \code{regionctf_list} but grouped by
-\code{income_group} instead of \code{region}. See \code{\link[=aggregate_data_list]{aggregate_data_list()}} for full
-details.
+\code{ctfdata_list} with country-level rows replaced by World Bank income-group
+averages. Identical logic to \code{regionctf_list} but grouped by \code{income_group}.
 }
 \seealso{
 \code{ctfdata_list}, \code{wbcountries}, \code{\link[=aggregate_data_list]{aggregate_data_list()}}

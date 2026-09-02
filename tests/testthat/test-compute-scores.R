@@ -196,7 +196,7 @@ test_that("compute_cluster_averages returns expected columns", {
   expect_true(all(expected_cols %in% names(result)))
 })
 
-test_that("compute_cluster_averages cluster score is mean of subcluster scores (Option A)", {
+test_that("compute_cluster_averages cluster score is the equal-weight mean of subcluster scores", {
   scored <- score_ctfdata_list(make_ctf_list())
   result <- compute_cluster_averages(scored)
 
@@ -280,4 +280,57 @@ test_that("compute_cluster_averages handles multiple years correctly", {
   result <- compute_cluster_averages(lst)
   expect_equal(nrow(result), 4L)
   expect_true(all(c(2020L, 2021L) %in% result$year))
+})
+
+# ============================================================================
+# Arbitrary nesting depth (sub-subclusters) + empty leaves
+# ============================================================================
+
+make_nested_list <- function() {
+  id <- function(...) tibble::tibble(
+    country_code = c("AAA", "BBB"), country_name = c("Alpha", "Beta"),
+    year = c(2020L, 2020L), ...
+  )
+  list(
+    two_level = list(
+      sub_a = id(ind_a = c(0.2, 0.8))                 # score 0.2 / 0.8
+    ),
+    three_level = list(
+      branch = list(
+        ss_x = id(ind_x = c(0.4, 0.4)),               # score 0.4 / 0.4
+        ss_y = id(ind_y = c(0.6, 0.6))                # score 0.6 / 0.6
+      )
+    )
+  )
+}
+
+test_that("score_ctfdata_list recurses into sub-subclusters", {
+  scored <- score_ctfdata_list(make_nested_list())
+  leaf <- scored$three_level$branch$ss_x
+  expect_true(all(c("score", "var_count", "nonna_count") %in% names(leaf)))
+  expect_equal(scored$two_level$sub_a$score, c(0.2, 0.8))
+})
+
+test_that("compute_cluster_averages aggregates a three-level branch by equal child weight", {
+  scored <- score_ctfdata_list(make_nested_list())
+  result <- compute_cluster_averages(scored)
+  # branch score = mean(ss_x=0.4, ss_y=0.6) = 0.5 for both rows
+  # three_level cluster has one child (branch) → cluster score = 0.5
+  expect_equal(result$three_level_score, c(0.5, 0.5), tolerance = 1e-9)
+  expect_equal(result$two_level_score,   c(0.2, 0.8), tolerance = 1e-9)
+})
+
+test_that("compute_cluster_averages tolerates an empty (zero-row) leaf", {
+  scored <- score_ctfdata_list(make_nested_list())
+  scored$two_level$sub_b <- add_subcluster_score(
+    tibble::tibble(country_code = character(0), country_name = character(0),
+                   year = integer(0))
+  )
+  result <- compute_cluster_averages(scored)
+  # sub_b contributes nothing; two_level_score still driven by sub_a
+  expect_equal(result$two_level_score, c(0.2, 0.8), tolerance = 1e-9)
+})
+
+test_that("score_ctfdata_list rejects a data.frame at the top level", {
+  expect_error(score_ctfdata_list(iris))
 })

@@ -10,43 +10,37 @@ compute_cluster_averages(
 )
 }
 \arguments{
-\item{ctfdata_list}{A scored nested list (output of \code{\link[=score_ctfdata_list]{score_ctfdata_list()}}).}
+\item{ctfdata_list}{A scored nested list (output of \code{\link[=score_ctfdata_list]{score_ctfdata_list()}}).
+Nesting depth may vary between clusters.}
 
 \item{id_cols}{Character vector of identifier columns. Defaults to
 \code{c("country_code", "country_name", "year")}.}
 }
 \value{
-A tibble with one row per \verb{country_code × country_name × year} and
-the following columns:
-\describe{
-\item{\code{country_code}}{ISO 3-letter country code.}
-\item{\code{country_name}}{Country name.}
-\item{\code{year}}{Calendar year.}
-\item{\code{institutional_environment_score}}{Mean of subcluster scores
-within the Institutional Environment cluster.}
-\item{\code{political_institutions_score}}{Mean of subcluster scores
-within the Political Institutions cluster.}
-\item{\code{center_of_government_score}}{Mean of subcluster scores
-within the Center of Government cluster.}
-\item{\code{sectors_service_delivery_score}}{Mean of subcluster scores
-within the Sectors / Service Delivery cluster.}
-\item{\code{overall_score}}{Mean of the four cluster scores per row
-(\code{na.rm = TRUE}).}
-}
+A tibble with one row per \verb{country_code x country_name x year},
+an \verb{<cluster>_score} column for each top-level list element, and an
+\code{overall_score} column (mean of the cluster scores, \code{na.rm = TRUE}).
 }
 \description{
 Takes a \code{ctfdata_list} that has already been enriched by
-\code{\link[=score_ctfdata_list]{score_ctfdata_list()}} (i.e. each subcluster tibble has a \code{score} column)
-and computes:
+\code{\link[=score_ctfdata_list]{score_ctfdata_list()}} (i.e. every leaf tibble has a \code{score} column) and
+computes:
 }
 \details{
 \itemize{
-\item One score per cluster per \verb{country_code × country_name × year}, defined
-as the \strong{mean of the subcluster scores} (Option A — equal weight per
-subcluster regardless of how many indicators it contains).
-\item One overall score per \verb{country_code × country_name × year}, defined as
-the mean of the four cluster scores (\code{na.rm = TRUE}).
+\item One score per \strong{cluster} (top-level list element) per
+\verb{country_code x country_name x year}, defined recursively as the mean of
+its immediate children's scores — equal weight per child at every level.
+For a plain two-level cluster this is the mean of its subcluster scores;
+for Public Financial Management it is the mean of its sub-subcluster
+scores, each of which is itself a row-mean of that sub-subcluster's
+indicators.
+\item One \code{overall_score} per \verb{country_code x country_name x year}, defined as
+the mean of the cluster scores (\code{na.rm = TRUE}).
 }
+
+Empty leaves (zero-row tibbles) contribute nothing to the joins, so a
+"coming soon" subcluster neither inflates nor deflates its cluster score.
 }
 \examples{
 \dontrun{

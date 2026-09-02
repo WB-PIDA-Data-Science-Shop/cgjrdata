@@ -268,3 +268,33 @@ test_that("aggregate_data_list errors when data_list is not a list", {
     regexp = "is.list"
   )
 })
+
+# ---------------------------------------------------------------------------
+# aggregate_data_list — arbitrary nesting depth + empty leaves
+# ---------------------------------------------------------------------------
+
+test_that("aggregate_data_list recurses into a three-level branch", {
+  dl <- make_data_list()
+  dl$cluster_one$subcluster_a <- list(
+    ss_x = make_cls(),
+    ss_y = make_cls()
+  )
+  result <- aggregate_data_list(dl, "region", make_wb())
+  expect_true(is.list(result$cluster_one$subcluster_a))
+  expect_s3_class(result$cluster_one$subcluster_a$ss_x, "tbl_df")
+  expect_true(all(c("region", "region_code", "year") %in%
+                    names(result$cluster_one$subcluster_a$ss_x)))
+})
+
+test_that("aggregate_data_list returns an empty shell for a zero-row leaf", {
+  dl <- make_data_list()
+  dl$cluster_two$subcluster_c <- tibble(
+    country_code = character(0), country_name = character(0),
+    year = integer(0)
+  )
+  result <- aggregate_data_list(dl, "region", make_wb())
+  leaf <- result$cluster_two$subcluster_c
+  expect_s3_class(leaf, "tbl_df")
+  expect_equal(nrow(leaf), 0L)
+  expect_true("score" %in% names(leaf))
+})
