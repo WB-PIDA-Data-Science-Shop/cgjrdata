@@ -14,10 +14,6 @@ Public Financial Management.}
 \item{\code{indicator}}{Human-readable indicator name as specified by the team.}
 \item{\code{source}}{Data source as stated in the taxonomy specification.}
 \item{\code{variable}}{Resolved \code{cliaretl} variable code, or \code{NA} if unresolved.}
-\item{\code{status}}{Editor's judgement: \code{"ok"} (code confirmed), \code{"verify"}
-(code assigned but a caveat in \code{note} remains), or \code{"unresolved"} (no
-code — \code{variable} is \code{NA}). Distinct from
-\code{validate_crosswalk()$check}, which is computed against \code{cliaretl}.}
 \item{\code{note}}{Free-text caveat: how the code was resolved, an outstanding
 check, or why a row is unresolved.}
 }

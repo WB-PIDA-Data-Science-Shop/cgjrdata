@@ -17,7 +17,7 @@ found.
 }
 \description{
 A \code{cliaretl}-free sanity check on the two hand-edited tables (\code{cgjr_crosswalk}
-and \code{cgjr_taxonomy}, read from \verb{data-raw/crosswalk/*.csv} at build time).
+and \code{cgjr_taxonomy}, read from \verb{data-raw/input/*.csv} at build time).
 Run this immediately after reading the CSVs and before
 \code{\link[=validate_crosswalk]{validate_crosswalk()}}: a malformed CSV can still parse into a well-typed
 data frame, so the shape has to be asserted explicitly.
@@ -29,15 +29,17 @@ The checks are:
 \enumerate{
 \item Both tables carry their required columns.
 \item No \code{NA} in the crosswalk's structural columns (\code{cluster},
-\code{subcluster}, \code{indicator_num}, \code{indicator}, \code{status}).
-\item \code{status} is one of \code{"ok"}, \code{"verify"}, \code{"unresolved"}.
-\item \code{status == "unresolved"} if and only if \code{variable} is \code{NA}.
+\code{subcluster}, \code{indicator_num}, \code{indicator}).
 \item Every \verb{(cluster, subcluster, sub_subcluster)} combination in the
 crosswalk exists as a leaf row in the taxonomy.
 \item \code{indicator_num} is unique within each leaf.
 \item Each non-\code{NA} \code{variable} appears at most once within a leaf.
 \item Taxonomy leaf keys are unique.
 }
+
+Whether a resolved \code{variable} code is actually eligible for the CTF
+dynamic panel is a separate, \code{cliaretl}-dependent question answered by
+\code{\link[=validate_crosswalk]{validate_crosswalk()}}.
 }
 \examples{
 \dontrun{

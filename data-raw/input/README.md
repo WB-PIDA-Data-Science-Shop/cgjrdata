@@ -48,11 +48,10 @@ row. Public Financial Management contributes 4 leaf rows, not 1.
 | `indicator_num` | position within the leaf; unique within the leaf |
 | `indicator` | human-readable name (as the methodology team specifies it) |
 | `source` | stated data source (free text, e.g. `WJP`, `PEFA PI-5`) |
-| `variable` | the `cliaretl` variable code. **Blank** if no code has been confirmed. Never guess — leave blank and set `status = unresolved`. |
-| `status` | `ok` = code confirmed against `cliaretl` text; `verify` = code assigned but a caveat remains (see `note`); `unresolved` = no code (blank `variable`). Must be `unresolved` iff `variable` is blank. |
+| `variable` | the `cliaretl` variable code. **Blank** if no code has been confirmed. Never guess — leave blank. |
 | `note` | free text: how the code was resolved, what still needs checking, or why it is unresolved. Commas/quotes are fine (standard CSV quoting). Keep it to one line. |
 
-`status` is your judgement. The build separately computes a machine verdict
+The build computes a machine verdict per row
 (`validate_crosswalk()$check`: `ok` / `not_family_aggregate_eligible` /
 `not_dynamic_eligible` / `not_in_catalogue` / `unresolved`) against live
-`cliaretl`. Both end up in `metadata_tbl`.
+`cliaretl`, and carries it into `metadata_tbl`.

@@ -4,8 +4,8 @@
 # The taxonomy and every indicator's place in it are maintained as two
 # human-editable CSV files:
 #
-#   data-raw/crosswalk/cgjr_taxonomy.csv    one row per LEAF node
-#   data-raw/crosswalk/cgjr_crosswalk.csv   one row per (indicator x leaf)
+#   data-raw/input/cgjr_taxonomy.csv    one row per LEAF node
+#   data-raw/input/cgjr_crosswalk.csv   one row per (indicator x leaf)
 #
 # Edit those in a spreadsheet (Google Sheets, or any CSV-aware editor - avoid
 # Excel, which mangles encoding and coerces codes). This script only reads
@@ -19,20 +19,21 @@
 #   indicator                            human-readable name (team-specified)
 #   source                               stated data source
 #   variable                             resolved cliaretl code, blank if none
-#   status                               ok | verify | unresolved
 #   note                                 free-text caveat / how it was resolved
 #
-# `status` is the editor's judgement; `validate_crosswalk()$check` is the
-# machine verdict against cliaretl. Both are carried into `metadata_tbl`.
+# `validate_crosswalk()$check` is the machine verdict against cliaretl
+# (ok / not_family_aggregate_eligible / not_dynamic_eligible /
+# not_in_catalogue / unresolved). It is carried into `metadata_tbl`.
 #
 # See reconfiguration.md for the taxonomy specification.
 ##############################################################################
+devtools::load_all()
 
 library(readr)
 library(here)
 
-tax_path <- here::here("data-raw", "crosswalk", "cgjr_taxonomy.csv")
-xw_path  <- here::here("data-raw", "crosswalk", "cgjr_crosswalk.csv")
+tax_path <- here::here("data-raw", "input", "cgjr_taxonomy.csv")
+xw_path  <- here::here("data-raw", "input", "cgjr_crosswalk.csv")
 
 # --- 1. Read the CSVs with an explicit column spec (never guess) ----------
 cgjr_taxonomy <- readr::read_csv(
@@ -61,12 +62,13 @@ cgjr_crosswalk <- readr::read_csv(
     indicator      = readr::col_character(),
     source         = readr::col_character(),
     variable       = readr::col_character(),
-    status         = readr::col_character(),
     note           = readr::col_character()
   ),
   na = ""
 )
 
+### use readr problems() function to check if there are issues with the csv files
+### worth noting for devtools::check() later
 if (nrow(readr::problems(cgjr_taxonomy)) > 0L ||
     nrow(readr::problems(cgjr_crosswalk)) > 0L) {
   print(readr::problems(cgjr_taxonomy))
@@ -77,8 +79,6 @@ if (nrow(readr::problems(cgjr_taxonomy)) > 0L ||
 cgjr_taxonomy  <- tibble::as_tibble(cgjr_taxonomy)
 cgjr_crosswalk <- tibble::as_tibble(cgjr_crosswalk)
 
-# --- 2. Structural integrity (cliaretl-free) ------------------------------
-devtools::load_all(quiet = TRUE)
 check_crosswalk_schema(cgjr_crosswalk, cgjr_taxonomy)
 
 # --- 3. Validate resolved codes against live cliaretl --------------------

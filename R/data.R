@@ -64,10 +64,6 @@
 #'   \item{`indicator`}{Human-readable indicator name as specified by the team.}
 #'   \item{`source`}{Data source as stated in the taxonomy specification.}
 #'   \item{`variable`}{Resolved `cliaretl` variable code, or `NA` if unresolved.}
-#'   \item{`status`}{Editor's judgement: `"ok"` (code confirmed), `"verify"`
-#'     (code assigned but a caveat in `note` remains), or `"unresolved"` (no
-#'     code — `variable` is `NA`). Distinct from
-#'     `validate_crosswalk()$check`, which is computed against `cliaretl`.}
 #'   \item{`note`}{Free-text caveat: how the code was resolved, an outstanding
 #'     check, or why a row is unresolved.}
 #' }
@@ -173,8 +169,6 @@
 #'   \item{`source`}{Source as stated in the taxonomy; `source_cliar` is the
 #'     catalogue's own source string.}
 #'   \item{`variable`}{Resolved `cliaretl` code, or `NA`.}
-#'   \item{`status`}{Editor's judgement from the crosswalk: `"ok"` /
-#'     `"verify"` / `"unresolved"`.}
 #'   \item{`note`}{Resolution caveat from the crosswalk.}
 #'   \item{`var_name`, `description`, `description_short`, `family_name`,
 #'     `etl_source`, `benchmarked_ctf`, `benchmark_dynamic_indicator`,

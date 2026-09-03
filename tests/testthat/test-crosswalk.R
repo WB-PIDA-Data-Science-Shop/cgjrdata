@@ -37,7 +37,6 @@ make_xw <- function() {
     indicator      = c("ok", "fa no", "dyn no", "not in cat", "unresolved"),
     source         = "src",
     variable       = c("ok_var", "fa_no_var", "dyn_no_var", "missing_var", NA),
-    status         = c("ok", "ok", "ok", "verify", "unresolved"),
     note           = NA_character_
   )
 }
@@ -96,20 +95,6 @@ test_that("check_crosswalk_schema flags a leaf path missing from the taxonomy", 
   xw$subcluster[1] <- "s_typo"
   expect_error(check_crosswalk_schema(xw, make_tax()),
                regexp = "not found in taxonomy")
-})
-
-test_that("check_crosswalk_schema flags status / variable disagreement", {
-  xw <- make_xw()
-  xw$status[5] <- "ok"          # row 5 has NA variable
-  expect_error(check_crosswalk_schema(xw, make_tax()),
-               regexp = "NA variable but status is not 'unresolved'")
-})
-
-test_that("check_crosswalk_schema flags a bad status value", {
-  xw <- make_xw()
-  xw$status[1] <- "maybe"
-  expect_error(check_crosswalk_schema(xw, make_tax()),
-               regexp = "unexpected value")
 })
 
 test_that("check_crosswalk_schema flags duplicate indicator_num within a leaf", {
@@ -185,7 +170,7 @@ test_that("build_ctfdata_list supports a three-level (sub-subcluster) branch", {
 # ---------------------------------------------------------------------------
 
 test_that("the shipped .rda objects match their source CSVs", {
-  csv_dir <- testthat::test_path("..", "..", "data-raw", "crosswalk")
+  csv_dir <- testthat::test_path("..", "..", "data-raw", "input")
   skip_if_not(dir.exists(csv_dir))
 
   xw_csv <- utils::read.csv(
@@ -202,8 +187,6 @@ test_that("the shipped .rda objects match their source CSVs", {
   expect_setequal(names(tx_csv), names(cgjr_taxonomy))
   expect_equal(sort(stats::na.omit(xw_csv$variable)),
                sort(stats::na.omit(cgjr_crosswalk$variable)))
-  # the CSV is the source of truth for status
-  expect_equal(xw_csv$status, cgjr_crosswalk$status)
 })
 
 test_that("the shipped cgjr_crosswalk resolves every non-NA variable to cliaretl", {

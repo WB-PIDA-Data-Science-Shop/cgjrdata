@@ -184,7 +184,7 @@ validate_crosswalk <- function(crosswalk,
 #' Check the structural integrity of the CGJR crosswalk and taxonomy
 #'
 #' A `cliaretl`-free sanity check on the two hand-edited tables (`cgjr_crosswalk`
-#' and `cgjr_taxonomy`, read from `data-raw/crosswalk/*.csv` at build time).
+#' and `cgjr_taxonomy`, read from `data-raw/input/*.csv` at build time).
 #' Run this immediately after reading the CSVs and before
 #' [validate_crosswalk()]: a malformed CSV can still parse into a well-typed
 #' data frame, so the shape has to be asserted explicitly.
@@ -195,15 +195,17 @@ validate_crosswalk <- function(crosswalk,
 #' \enumerate{
 #'   \item Both tables carry their required columns.
 #'   \item No `NA` in the crosswalk's structural columns (`cluster`,
-#'     `subcluster`, `indicator_num`, `indicator`, `status`).
-#'   \item `status` is one of `"ok"`, `"verify"`, `"unresolved"`.
-#'   \item `status == "unresolved"` if and only if `variable` is `NA`.
+#'     `subcluster`, `indicator_num`, `indicator`).
 #'   \item Every `(cluster, subcluster, sub_subcluster)` combination in the
 #'     crosswalk exists as a leaf row in the taxonomy.
 #'   \item `indicator_num` is unique within each leaf.
 #'   \item Each non-`NA` `variable` appears at most once within a leaf.
 #'   \item Taxonomy leaf keys are unique.
 #' }
+#'
+#' Whether a resolved `variable` code is actually eligible for the CTF
+#' dynamic panel is a separate, `cliaretl`-dependent question answered by
+#' [validate_crosswalk()].
 #'
 #' @param crosswalk The indicator crosswalk (e.g. `cgjr_crosswalk`).
 #' @param taxonomy The leaf-node taxonomy (e.g. `cgjr_taxonomy`).
@@ -227,7 +229,7 @@ check_crosswalk_schema <- function(crosswalk, taxonomy) {
   add <- function(...) problems <<- c(problems, paste0(...))
 
   xw_req <- c("cluster", "subcluster", "sub_subcluster", "indicator_num",
-              "indicator", "source", "variable", "status", "note")
+              "indicator", "source", "variable", "note")
   tx_req <- c("cluster", "cluster_num", "cluster_name",
               "subcluster", "subcluster_num", "subcluster_name",
               "sub_subcluster", "sub_subcluster_num", "sub_subcluster_name")
@@ -239,26 +241,9 @@ check_crosswalk_schema <- function(crosswalk, taxonomy) {
 
   # Everything below assumes the required columns exist.
   if (length(xw_missing) == 0L) {
-    for (col in c("cluster", "subcluster", "indicator_num", "indicator", "status")) {
+    for (col in c("cluster", "subcluster", "indicator_num", "indicator")) {
       n_na <- sum(is.na(crosswalk[[col]]))
       if (n_na > 0L) add(n_na, " crosswalk row(s) have NA `", col, "`")
-    }
-
-    bad_status <- setdiff(stats::na.omit(unique(crosswalk$status)),
-                          c("ok", "verify", "unresolved"))
-    if (length(bad_status)) {
-      add("crosswalk `status` has unexpected value(s): ", paste(bad_status, collapse = ", "))
-    }
-
-    unresolved   <- !is.na(crosswalk$status) & crosswalk$status == "unresolved"
-    no_variable  <- is.na(crosswalk$variable)
-    if (any(unresolved & !no_variable)) {
-      add(sum(unresolved & !no_variable),
-          " crosswalk row(s) have status 'unresolved' but a non-NA variable")
-    }
-    if (any(!unresolved & no_variable)) {
-      add(sum(!unresolved & no_variable),
-          " crosswalk row(s) have a NA variable but status is not 'unresolved'")
     }
 
     leaf_key <- function(df) {
