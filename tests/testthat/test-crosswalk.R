@@ -1,238 +1,173 @@
-## Tests for crosswalk.R — validate_crosswalk() and the generic builders.
-##
-## The synthetic-fixture tests run without cliaretl. Tests that exercise the
-## real crosswalk are guarded on cgjr_crosswalk / cliaretl being available.
-
-library(tibble)
+## Tests for resolve_leaf() and build_crosswalk()
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
-make_catalogue <- function() {
+fx_taxonomy <- function() {
   tibble::tibble(
-    variable = c("ok_var", "fa_no_var", "dyn_no_var", "static_var"),
-    benchmark_dynamic_indicator        = c("Yes", "Yes", "No",  "Yes"),
-    benchmark_dynamic_family_aggregate = c("Yes", "No",  "No",  "Partial")
+    cluster             = c("c1", "c2", "c2"),
+    cluster_num         = c(1L, 2L, 2L),
+    cluster_name        = c("C1", "C2", "C2"),
+    subcluster          = c("s1", "s2", "s2"),
+    subcluster_num      = c(1L, 1L, 1L),
+    subcluster_name     = c("S1", "S2", "S2"),
+    sub_subcluster      = c(NA, "ss1", "ss2"),
+    sub_subcluster_num  = c(NA, 1L, 2L),
+    sub_subcluster_name = c(NA, "SS1", "SS2")
   )
 }
 
-make_ctf <- function() {
+fx_crosswalk_csv <- function() {
   tibble::tibble(
-    country_code = c("AAA", "BBB"),
-    country_name = c("Alpha", "Beta"),
-    year         = c(2020L, 2020L),
-    ok_var       = c(0.2, 0.8),
-    fa_no_var    = c(0.3, 0.7),
-    dyn_no_var   = c(0.1, 0.9)   # present here but flagged "No" in catalogue
-  )
-}
-
-make_xw <- function() {
-  tibble::tibble(
-    cluster        = "c1",
-    subcluster     = c("s1", "s1", "s1", "s1", "s2"),
-    sub_subcluster = NA_character_,
-    indicator_num  = c(1L, 2L, 3L, 4L, 1L),
-    indicator      = c("ok", "fa no", "dyn no", "not in cat", "unresolved"),
-    source         = "src",
-    variable       = c("ok_var", "fa_no_var", "dyn_no_var", "missing_var", NA),
-    status         = c("ok", "ok", "ok", "verify", "unresolved"),
+    cluster        = c("c1", "c1", "c2", "c2"),
+    subcluster     = c("s1", "s1", "s2", "s2"),
+    sub_subcluster = c(NA, NA, "ss1", "ss2"),
+    indicator_num  = c(1L, 2L, 1L, 1L),
+    indicator      = c("Alpha", "Beta", "Gamma", "Delta"),
+    source         = "SRC",
+    variable       = c("v_ok", NA, "v_ok2", "ghost"),
     note           = NA_character_
   )
 }
 
-make_tax <- function() {
+fx_catalogue <- function() {
   tibble::tibble(
-    cluster = "c1", cluster_num = 1L, cluster_name = "C1",
-    subcluster = c("s1", "s2"), subcluster_num = c(1L, 2L),
-    subcluster_name = c("S1", "S2"),
-    sub_subcluster = NA_character_, sub_subcluster_num = NA_integer_,
-    sub_subcluster_name = NA_character_
+    variable                           = c("v_ok", "v_ok2", "v_other"),
+    var_name                           = c("V OK", "V OK 2", "V Other"),
+    family_name                        = c("Fam A", "Fam B", "Fam C"),
+    description                        = c("desc ok", "desc ok2", "desc other"),
+    etl_source                         = c("vdem", "wdi", "vdem"),
+    benchmark_dynamic_indicator        = c("Yes", "No", "Yes"),
+    benchmark_dynamic_family_aggregate = c("Yes", "No", "Yes")
   )
 }
 
+fx_dynamic <- function() {
+  tibble::tibble(country_code = character(), year = integer(), v_ok = double())
+}
+fx_static <- function() {
+  tibble::tibble(country_code = character(), v_ok2 = double())
+}
+
+build_fx <- function() {
+  build_crosswalk(fx_crosswalk_csv(), fx_taxonomy(), fx_catalogue(),
+                  fx_dynamic(), fx_static())
+}
+
 # ---------------------------------------------------------------------------
-# validate_crosswalk()
+# resolve_leaf()
 # ---------------------------------------------------------------------------
 
-test_that("validate_crosswalk classifies each row correctly", {
-  res <- suppressWarnings(
-    validate_crosswalk(make_xw(), catalogue = make_catalogue(), ctf_dynamic = make_ctf())
+test_that("resolve_leaf takes sub_subcluster where present, else subcluster", {
+  expect_equal(
+    resolve_leaf(c(NA, "public_procurement", NA), c("digital_and_data", "pfm", "hrm")),
+    c("digital_and_data", "public_procurement", "hrm")
   )
-  checks <- setNames(res$check, res$indicator)
-  expect_equal(unname(checks["ok"]),         "ok")
-  expect_equal(unname(checks["fa no"]),      "not_family_aggregate_eligible")
-  expect_equal(unname(checks["dyn no"]),     "not_dynamic_eligible")
-  expect_equal(unname(checks["not in cat"]), "not_in_catalogue")
-  expect_equal(unname(checks["unresolved"]), "unresolved")
 })
 
-test_that("validate_crosswalk warns about non-ok rows and returns invisibly", {
-  expect_warning(
-    validate_crosswalk(make_xw(), catalogue = make_catalogue(), ctf_dynamic = make_ctf()),
-    regexp = "failed eligibility checks"
+test_that("resolve_leaf returns NA only when both inputs are NA", {
+  expect_equal(resolve_leaf(NA_character_, NA_character_), NA_character_)
+})
+
+# ---------------------------------------------------------------------------
+# build_crosswalk() – row preservation & leaf
+# ---------------------------------------------------------------------------
+
+test_that("build_crosswalk keeps every CSV row, in order", {
+  out <- build_fx()
+  expect_equal(nrow(out), nrow(fx_crosswalk_csv()))
+  expect_identical(out$indicator, c("Alpha", "Beta", "Gamma", "Delta"))
+})
+
+test_that("build_crosswalk derives the leaf key", {
+  expect_identical(build_fx()$leaf, c("s1", "s1", "ss1", "ss2"))
+})
+
+# ---------------------------------------------------------------------------
+# build_crosswalk() – column schema
+# ---------------------------------------------------------------------------
+
+test_that("build_crosswalk emits the expected columns in order", {
+  expect_identical(
+    names(build_fx()),
+    c("cluster", "subcluster", "sub_subcluster", "leaf",
+      "indicator_num", "indicator", "source", "variable", "note",
+      "cluster_num", "cluster_name", "subcluster_num", "subcluster_name",
+      "sub_subcluster_num", "sub_subcluster_name",
+      "var_name", "family_name", "description", "etl_source",
+      "benchmark_dynamic_indicator", "benchmark_dynamic_family_aggregate",
+      "in_cliaretl", "in_dynamic_panel", "in_static_panel",
+      "dynamic_eligible", "static_eligible", "cliaretl_status")
   )
 })
 
-test_that("validate_crosswalk errors on missing required columns", {
+test_that("build_crosswalk errors if an expected column cannot be produced", {
+  tx <- fx_taxonomy()
+  tx$cluster_name <- NULL
   expect_error(
-    validate_crosswalk(tibble::tibble(variable = "x")),
-    regexp = "missing required column"
+    build_crosswalk(fx_crosswalk_csv(), tx, fx_catalogue(), fx_dynamic(), fx_static()),
+    regexp = "missing expected column\\(s\\): cluster_name"
   )
 })
 
 # ---------------------------------------------------------------------------
-# check_crosswalk_schema()
+# build_crosswalk() – taxonomy join
 # ---------------------------------------------------------------------------
 
-test_that("check_crosswalk_schema passes a well-formed crosswalk/taxonomy pair", {
-  expect_invisible(check_crosswalk_schema(make_xw(), make_tax()))
-  expect_identical(check_crosswalk_schema(make_xw(), make_tax()), make_xw())
-})
-
-test_that("check_crosswalk_schema flags a leaf path missing from the taxonomy", {
-  xw <- make_xw()
-  xw$subcluster[1] <- "s_typo"
-  expect_error(check_crosswalk_schema(xw, make_tax()),
-               regexp = "not found in taxonomy")
-})
-
-test_that("check_crosswalk_schema flags status / variable disagreement", {
-  xw <- make_xw()
-  xw$status[5] <- "ok"          # row 5 has NA variable
-  expect_error(check_crosswalk_schema(xw, make_tax()),
-               regexp = "NA variable but status is not 'unresolved'")
-})
-
-test_that("check_crosswalk_schema flags a bad status value", {
-  xw <- make_xw()
-  xw$status[1] <- "maybe"
-  expect_error(check_crosswalk_schema(xw, make_tax()),
-               regexp = "unexpected value")
-})
-
-test_that("check_crosswalk_schema flags duplicate indicator_num within a leaf", {
-  xw <- make_xw()
-  xw$indicator_num[2] <- 1L     # rows 1 and 2 are both s1 / indicator_num 1
-  expect_error(check_crosswalk_schema(xw, make_tax()),
-               regexp = "duplicate indicator_num")
-})
-
-test_that("check_crosswalk_schema flags a duplicate variable within a leaf", {
-  xw <- make_xw()
-  xw$variable[2] <- "ok_var"    # same as row 1, same leaf
-  expect_error(check_crosswalk_schema(xw, make_tax()),
-               regexp = "duplicate variable")
-})
-
-test_that("check_crosswalk_schema reports missing columns", {
-  expect_error(
-    check_crosswalk_schema(tibble::tibble(cluster = "c1"), make_tax()),
-    regexp = "missing column"
-  )
-})
-
-test_that("the shipped cgjr_crosswalk / cgjr_taxonomy pass the schema check", {
-  skip_if_not(exists("cgjr_crosswalk") && exists("cgjr_taxonomy"))
-  expect_invisible(check_crosswalk_schema(cgjr_crosswalk, cgjr_taxonomy))
+test_that("build_crosswalk joins taxonomy numbers and names per leaf", {
+  out <- build_fx()
+  expect_equal(out$cluster_num, c(1L, 1L, 2L, 2L))
+  expect_equal(out$subcluster_name, c("S1", "S1", "S2", "S2"))
+  expect_equal(out$sub_subcluster_name, c(NA, NA, "SS1", "SS2"))
 })
 
 # ---------------------------------------------------------------------------
-# build_ctfdata_list()
+# build_crosswalk() – catalogue join, NA for unresolved / not-in-cliaretl
 # ---------------------------------------------------------------------------
 
-test_that("build_ctfdata_list nests to the taxonomy shape and only keeps panel columns", {
-  ctf <- suppressWarnings(
-    build_ctfdata_list(make_xw(), make_tax(), ctf_dynamic = make_ctf(),
-                       catalogue = make_catalogue(), validate = FALSE)
-  )
-  expect_named(ctf, "c1")
-  expect_named(ctf$c1, c("s1", "s2"))
-  # s1 keeps ok_var + fa_no_var (both real panel columns); drops dyn/missing/NA
-  expect_true(all(c("ok_var", "fa_no_var") %in% names(ctf$c1$s1)))
-  expect_false("dyn_no_var" %in% names(ctf$c1$s1))
-  expect_false("missing_var" %in% names(ctf$c1$s1))
-})
-
-test_that("build_ctfdata_list returns a zero-row tibble for an all-ineligible leaf", {
-  # s2's only indicator is unresolved (variable NA)
-  ctf <- suppressWarnings(
-    build_ctfdata_list(make_xw(), make_tax(), ctf_dynamic = make_ctf(),
-                       catalogue = make_catalogue(), validate = FALSE)
-  )
-  expect_s3_class(ctf$c1$s2, "tbl_df")
-  expect_equal(nrow(ctf$c1$s2), 0L)
-  expect_true(all(c("country_code", "country_name", "year") %in% names(ctf$c1$s2)))
-})
-
-test_that("build_ctfdata_list supports a three-level (sub-subcluster) branch", {
-  xw <- make_xw()
-  xw$sub_subcluster[xw$subcluster == "s2"] <- "ss1"
-  tax <- make_tax()
-  tax$sub_subcluster[tax$subcluster == "s2"] <- "ss1"
-  ctf <- suppressWarnings(
-    build_ctfdata_list(xw, tax, ctf_dynamic = make_ctf(),
-                       catalogue = make_catalogue(), validate = FALSE)
-  )
-  expect_s3_class(ctf$c1$s1, "tbl_df")
-  expect_true(is.list(ctf$c1$s2) && !is.data.frame(ctf$c1$s2))
-  expect_s3_class(ctf$c1$s2$ss1, "tbl_df")
+test_that("catalogue metadata is joined for resolved rows and NA otherwise", {
+  out <- build_fx()
+  # Alpha=v_ok (resolved), Beta=NA (unresolved), Gamma=v_ok2 (resolved), Delta=ghost (not in cliaretl)
+  expect_equal(out$var_name,    c("V OK", NA, "V OK 2", NA))
+  expect_equal(out$family_name, c("Fam A", NA, "Fam B", NA))
+  expect_equal(out$description, c("desc ok", NA, "desc ok2", NA))
 })
 
 # ---------------------------------------------------------------------------
-# Real crosswalk (needs cliaretl + built data)
+# build_crosswalk() – eligibility flags
 # ---------------------------------------------------------------------------
 
-test_that("the shipped .rda objects match their source CSVs", {
-  csv_dir <- testthat::test_path("..", "..", "data-raw", "crosswalk")
-  skip_if_not(dir.exists(csv_dir))
+test_that("build_crosswalk carries the classify_crosswalk flags", {
+  out <- build_fx()
+  expect_equal(out$cliaretl_status,
+               c("resolved", "unresolved", "resolved", "not_in_cliaretl"))
+  expect_equal(out$dynamic_eligible, c(TRUE, FALSE, FALSE, FALSE))
+  expect_equal(out$static_eligible,  c(FALSE, FALSE, TRUE, FALSE))
+  expect_equal(out$in_cliaretl,      c(TRUE, FALSE, TRUE, FALSE))
+})
 
-  xw_csv <- utils::read.csv(
-    file.path(csv_dir, "cgjr_crosswalk.csv"),
-    colClasses = "character", na.strings = "", check.names = FALSE
+# ---------------------------------------------------------------------------
+# End-to-end against the real input CSV (skipped when run off an installed
+# package, where data-raw/ is absent)
+# ---------------------------------------------------------------------------
+
+test_that("build_crosswalk on the shipped CSV keeps every row and every leaf resolves", {
+  csv_path <- file.path(testthat::test_path(), "..", "..",
+                        "data-raw", "input", "cgjr_crosswalk.csv")
+  skip_if_not(file.exists(csv_path), "input CSV not available")
+  skip_if_not_installed("readr")
+
+  xw <- readr::read_csv(
+    csv_path,
+    col_types = readr::cols(.default = readr::col_character(),
+                            indicator_num = readr::col_integer()),
+    na = ""
   )
-  tx_csv <- utils::read.csv(
-    file.path(csv_dir, "cgjr_taxonomy.csv"),
-    colClasses = "character", na.strings = "", check.names = FALSE
-  )
-  expect_equal(nrow(xw_csv), nrow(cgjr_crosswalk))
-  expect_equal(nrow(tx_csv), nrow(cgjr_taxonomy))
-  expect_setequal(names(xw_csv), names(cgjr_crosswalk))
-  expect_setequal(names(tx_csv), names(cgjr_taxonomy))
-  expect_equal(sort(stats::na.omit(xw_csv$variable)),
-               sort(stats::na.omit(cgjr_crosswalk$variable)))
-  # the CSV is the source of truth for status
-  expect_equal(xw_csv$status, cgjr_crosswalk$status)
-})
+  out <- build_crosswalk(tibble::as_tibble(xw), cgjr_taxonomy)
 
-test_that("the shipped cgjr_crosswalk resolves every non-NA variable to cliaretl", {
-  skip_if_not_installed("cliaretl")
-  skip_if_not(exists("cgjr_crosswalk"))
-  cat <- cliaretl::db_variables_final$variable
-  resolved <- cgjr_crosswalk$variable[!is.na(cgjr_crosswalk$variable)]
-  expect_true(all(resolved %in% cat))
-})
-
-test_that("every cgjr_taxonomy leaf has a node in the built ctfdata_list", {
-  skip_if_not(exists("ctfdata_list") && exists("cgjr_taxonomy"))
-  for (i in seq_len(nrow(cgjr_taxonomy))) {
-    row  <- cgjr_taxonomy[i, ]
-    node <- ctfdata_list[[row$cluster]][[row$subcluster]]
-    if (!is.na(row$sub_subcluster)) node <- node[[row$sub_subcluster]]
-    expect_s3_class(node, "tbl_df")
-  }
-})
-
-test_that("populated ctfdata_list leaves have no all-NA indicator columns from a bad join", {
-  skip_if_not(exists("ctfdata_list"))
-  chk <- function(x) {
-    if (is.data.frame(x)) {
-      if (nrow(x) == 0L) return(invisible())
-      ind <- setdiff(names(x), c("country_code", "country_name", "year",
-                                 "score", "var_count", "nonna_count"))
-      for (cc in ind) expect_gt(sum(!is.na(x[[cc]])), 0L)
-    } else lapply(x, chk)
-  }
-  chk(ctfdata_list)
+  expect_equal(nrow(out), nrow(xw))
+  tax_leaves <- resolve_leaf(cgjr_taxonomy$sub_subcluster, cgjr_taxonomy$subcluster)
+  expect_true(all(out$leaf %in% tax_leaves))
+  expect_false(anyNA(out$cluster_num))   # every crosswalk row resolved to a taxonomy leaf
 })

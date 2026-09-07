@@ -3,14 +3,14 @@
 \docType{data}
 \name{cgjr_taxonomy}
 \alias{cgjr_taxonomy}
-\title{CGJR taxonomy — leaf nodes}
+\title{CGJR taxonomy - leaf nodes}
 \format{
-A tibble with one row per leaf node and the columns:
+A tibble with one row per leaf node (14 rows) and the columns:
 \describe{
 \item{\code{cluster}}{snake_case cluster key: \code{institutional_environment},
 \code{core_governance_functions}, \code{beyond_core_governance_functions},
 \code{context}.}
-\item{\code{cluster_num}}{Cluster number 1–4.}
+\item{\code{cluster_num}}{Cluster number 1-4.}
 \item{\code{cluster_name}}{Cluster display name.}
 \item{\code{subcluster}}{snake_case subcluster key.}
 \item{\code{subcluster_num}}{Subcluster number within the cluster.}
@@ -22,23 +22,25 @@ leaf except the four Public Financial Management sub-subclusters.}
 }
 }
 \source{
-\verb{data-raw/source/00b-cgjr-taxonomy-crosswalk.R}
+\code{data-raw/input/cgjr_taxonomy.csv} via
+\verb{data-raw/source/00b-cgjr-taxonomy-crosswalk.R}.
 }
 \usage{
 cgjr_taxonomy
 }
 \description{
-One row per \strong{leaf node} of the CGJR analytical taxonomy: the level at
-which indicators are grouped and scored. For most subclusters the leaf is
-the subcluster itself; for Public Financial Management the leaves are its
-four sub-subclusters. The table enumerates the \emph{full} hierarchy, including
-nodes that are intentionally empty ("coming soon").
+One row per \strong{leaf node} of the CGJR analytical taxonomy: the finest level
+at which indicators are grouped. For most subclusters the leaf is the
+subcluster itself; for Public Financial Management the leaves are its four
+sub-subclusters. The table enumerates the \emph{full} hierarchy, including nodes
+that are intentionally still empty ("coming soon").
 
-The \code{cluster}, \code{subcluster} and \code{sub_subcluster} columns are snake_case
-keys — they are the list keys used to index \code{rawdata_list}, \code{ctfdata_list}
-and the region/income aggregates.
+\code{cluster}, \code{subcluster} and \code{sub_subcluster} are snake_case keys - they are
+the join keys used throughout \code{cgjr_ctf}, \code{cgjr_scores} and \code{cgjr_raw}. The
+derived leaf key used by the build is
+\code{dplyr::coalesce(sub_subcluster, subcluster)} (see \code{\link[=resolve_leaf]{resolve_leaf()}}).
 }
 \seealso{
-\code{cgjr_crosswalk}, \code{\link[=validate_crosswalk]{validate_crosswalk()}}, \code{\link[=build_ctfdata_list]{build_ctfdata_list()}}
+\code{cgjr_crosswalk}, \code{\link[=resolve_leaf]{resolve_leaf()}}, \code{\link[=check_crosswalk_schema]{check_crosswalk_schema()}}
 }
 \keyword{datasets}

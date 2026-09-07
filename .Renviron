@@ -1,0 +1,5 @@
+# Skip R CMD check's "future file timestamps" step, which needs to reach an
+# online clock service (worldclockapi.com / worldtimeapi.org) and emits a
+# spurious "unable to verify current time" NOTE when it can't. Not a package
+# issue; CRAN disregards this NOTE.
+_R_CHECK_SYSTEM_CLOCK_=0

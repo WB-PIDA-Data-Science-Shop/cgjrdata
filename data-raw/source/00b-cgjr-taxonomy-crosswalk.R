@@ -4,38 +4,34 @@
 # The taxonomy and every indicator's place in it are maintained as two
 # human-editable CSV files:
 #
-#   data-raw/crosswalk/cgjr_taxonomy.csv    one row per LEAF node
-#   data-raw/crosswalk/cgjr_crosswalk.csv   one row per (indicator x leaf)
+#   data-raw/input/cgjr_taxonomy.csv    one row per LEAF node
+#   data-raw/input/cgjr_crosswalk.csv   one row per (indicator x leaf)
 #
 # Edit those in a spreadsheet (Google Sheets, or any CSV-aware editor - avoid
 # Excel, which mangles encoding and coerces codes). This script only reads
-# them, asserts their structure, validates the resolved variable codes
-# against live `cliaretl`, and saves the two lazyloaded package objects.
+# them, asserts their structure (check_crosswalk_schema), annotates the
+# crosswalk against live `cliaretl` (build_crosswalk), reports eligibility
+# gaps (validate_crosswalk), and saves the two lazyloaded package objects:
 #
-# cgjr_crosswalk columns:
-#   cluster, subcluster, sub_subcluster  snake_case taxonomy keys
-#                                        (sub_subcluster blank outside PFM)
-#   indicator_num                        position within the leaf
-#   indicator                            human-readable name (team-specified)
-#   source                               stated data source
-#   variable                             resolved cliaretl code, blank if none
-#   status                               ok | verify | unresolved
-#   note                                 free-text caveat / how it was resolved
+#   cgjr_taxonomy   the leaf-node hierarchy, straight from the CSV
+#   cgjr_crosswalk  the annotated crosswalk - CSV columns + `leaf` + taxonomy
+#                   numbers/names + cliaretl catalogue metadata + eligibility
+#                   flags (in_cliaretl / in_dynamic_panel / in_static_panel /
+#                   dynamic_eligible / static_eligible / cliaretl_status).
+#                   This object absorbs the former `metadata_tbl`.
 #
-# `status` is the editor's judgement; `validate_crosswalk()$check` is the
-# machine verdict against cliaretl. Both are carried into `metadata_tbl`.
-#
-# See reconfiguration.md for the taxonomy specification.
+# See PLAN.md for the full column spec.
 ##############################################################################
+devtools::load_all()
 
 library(readr)
 library(here)
 
-tax_path <- here::here("data-raw", "crosswalk", "cgjr_taxonomy.csv")
-xw_path  <- here::here("data-raw", "crosswalk", "cgjr_crosswalk.csv")
+tax_path <- here::here("data-raw", "input", "cgjr_taxonomy.csv")
+xw_path  <- here::here("data-raw", "input", "cgjr_crosswalk.csv")
 
 # --- 1. Read the CSVs with an explicit column spec (never guess) ----------
-cgjr_taxonomy <- readr::read_csv(
+taxonomy_csv <- readr::read_csv(
   tax_path,
   col_types = readr::cols(
     cluster             = readr::col_character(),
@@ -51,7 +47,7 @@ cgjr_taxonomy <- readr::read_csv(
   na = ""
 )
 
-cgjr_crosswalk <- readr::read_csv(
+crosswalk_csv <- readr::read_csv(
   xw_path,
   col_types = readr::cols(
     cluster        = readr::col_character(),
@@ -61,43 +57,47 @@ cgjr_crosswalk <- readr::read_csv(
     indicator      = readr::col_character(),
     source         = readr::col_character(),
     variable       = readr::col_character(),
-    status         = readr::col_character(),
     note           = readr::col_character()
   ),
   na = ""
 )
 
-if (nrow(readr::problems(cgjr_taxonomy)) > 0L ||
-    nrow(readr::problems(cgjr_crosswalk)) > 0L) {
-  print(readr::problems(cgjr_taxonomy))
-  print(readr::problems(cgjr_crosswalk))
+# --- 2. Guard against CSV parsing problems -------------------------------
+if (nrow(readr::problems(taxonomy_csv)) > 0L ||
+    nrow(readr::problems(crosswalk_csv)) > 0L) {
+  print(readr::problems(taxonomy_csv))
+  print(readr::problems(crosswalk_csv))
   stop("CSV parsing problems - see above.")
 }
 
-cgjr_taxonomy  <- tibble::as_tibble(cgjr_taxonomy)
-cgjr_crosswalk <- tibble::as_tibble(cgjr_crosswalk)
+taxonomy_csv  <- tibble::as_tibble(taxonomy_csv)
+crosswalk_csv <- tibble::as_tibble(crosswalk_csv)
 
-# --- 2. Structural integrity (cliaretl-free) ------------------------------
-devtools::load_all(quiet = TRUE)
-check_crosswalk_schema(cgjr_crosswalk, cgjr_taxonomy)
+# --- 3. Structural schema check (cliaretl-free) -------------------------
+check_crosswalk_schema(crosswalk_csv, taxonomy_csv)
 
-# --- 3. Validate resolved codes against live cliaretl --------------------
-validation <- validate_crosswalk(cgjr_crosswalk)   # emits warnings for failures
+# --- 4. Taxonomy ships as-is ------------------------------------------
+cgjr_taxonomy <- taxonomy_csv
 
-utils::write.csv(
-  validation,
-  here::here("data-raw", "output", "cgjr_crosswalk_validation.csv"),
-  row.names = FALSE
+# --- 5. Annotate the crosswalk against live cliaretl -------------------
+cgjr_crosswalk <- build_crosswalk(
+  crosswalk_csv,
+  taxonomy  = cgjr_taxonomy,
+  catalogue = cliaretl::db_variables_final
 )
+
+# --- 6. Report eligibility gaps (emits warnings) ----------------------
+validation <- validate_crosswalk(cgjr_crosswalk)
 
 message(
   "\ncgjr_crosswalk: ", nrow(cgjr_crosswalk), " rows | ",
-  sum(validation$check == "ok"), " fully eligible | ",
-  sum(validation$check == "not_family_aggregate_eligible"), " in-panel but family-aggregate ineligible | ",
-  sum(validation$check == "not_dynamic_eligible"), " not in dynamic panel | ",
-  sum(validation$check == "unresolved"), " unresolved (no variable)"
+  sum(validation$cliaretl_status == "resolved"),        " resolved, ",
+  sum(validation$cliaretl_status == "not_in_cliaretl"), " not in cliaretl, ",
+  sum(validation$cliaretl_status == "unresolved"),      " unresolved | ",
+  sum(validation$dynamic_eligible), " dynamic-eligible, ",
+  sum(validation$static_eligible),  " static-eligible"
 )
 
-# --- 4. Persist as package data -----------------------------------------
+# --- 7. Persist as package data ---------------------------------------
 usethis::use_data(cgjr_taxonomy,  overwrite = TRUE)
 usethis::use_data(cgjr_crosswalk, overwrite = TRUE)

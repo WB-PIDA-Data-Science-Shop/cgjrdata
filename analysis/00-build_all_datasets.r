@@ -11,7 +11,7 @@
 #   cgjr_crosswalk — every indicator's placement in that hierarchy, with its
 #                    resolved `cliaretl` variable code
 #
-# Run from the package root, then run analysis/01-combine-lazyload.R.
+# Run from the package root, then run analysis/01-build-tidy-data.R.
 ##############################################################################
 
 devtools::load_all()
@@ -20,6 +20,7 @@ devtools::load_all()
 source("data-raw/source/00a-prepare-country-list.R")
 
 # --- 2. CGJR taxonomy + indicator crosswalk --------------------------------
-#     Emits eligibility warnings and writes
-#     data-raw/output/cgjr_crosswalk_validation.csv for review.
+#     Reads the two editable CSVs, checks their structure, annotates the
+#     crosswalk against live `cliaretl`, and prints an eligibility summary
+#     (warns on rows that will contribute no CTF data).
 source("data-raw/source/00b-cgjr-taxonomy-crosswalk.R")

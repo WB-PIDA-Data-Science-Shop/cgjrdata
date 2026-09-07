@@ -3,68 +3,42 @@
 \docType{data}
 \name{wbcountries}
 \alias{wbcountries}
-\title{World Bank Country Classifications}
+\title{World Bank country classifications}
 \format{
 A tibble with 218 rows and 6 variables:
 \describe{
-\item{economy}{Full name of the economy or territory.}
-\item{country_code}{Three-letter ISO3 country code.}
-\item{income_group}{World Bank income classification: "Low income",
-"Lower middle income", "Upper middle income", or "High income".}
-\item{lending_category}{World Bank lending category: "IDA" (International Development Association),
-"IBRD" (International Bank for Reconstruction and Development), "Blend" (IDA and IBRD),
-or \code{NA} for high-income countries not eligible for lending.}
-\item{region_code}{Three-letter code for the World Bank region:
-\itemize{
-\item AFE - Africa Eastern and Southern
-\item AFW - Africa Western and Central
-\item EAP - East Asia & Pacific
-\item ECA - Europe & Central Asia
-\item LAC - Latin America & Caribbean
-\item MENAAP - Middle East, North Africa, Afghanistan & Pakistan
-\item SAR - South Asia
-\item NAC - North America
-}}
-\item{region}{Full name of the World Bank region corresponding to the region_code.}
+\item{\code{economy}}{Full name of the economy or territory.}
+\item{\code{country_code}}{Three-letter ISO3 code.}
+\item{\code{income_group}}{\code{"Low income"}, \code{"Lower middle income"},
+\code{"Upper middle income"}, or \code{"High income"}.}
+\item{\code{lending_category}}{\code{"IDA"}, \code{"IBRD"}, \code{"Blend"}, or \code{NA} for
+high-income economies not eligible for lending.}
+\item{\code{region_code}}{\code{AFE}, \code{AFW}, \code{EAP}, \code{ECA}, \code{LAC}, \code{MENAAP}, \code{SAR},
+or \code{NAC}.}
+\item{\code{region}}{Full region name corresponding to \code{region_code}.}
 }
 }
 \source{
-World Bank Country and Lending Groups Classification (October 2025).
-File: CLASS_2025_10_07.xlsx
+World Bank Country and Lending Groups Classification (October
+2025), \code{data-raw/input/CLASS_2025_10_07.xlsx}, via
+\verb{data-raw/source/00a-prepare-country-list.R}.
 }
 \usage{
 wbcountries
 }
 \description{
-A dataset containing the World Bank's official country classifications including
-economy names, country codes, income groups, lending categories, and regional
-assignments. This dataset uses the World Bank's updated regional classification
-that splits Sub-Saharan Africa into Eastern/Southern and Western/Central regions.
-}
-\details{
-This dataset reflects the World Bank's current operational classification of countries
-and territories. The regional classification follows the World Bank's updated structure
-that divides Sub-Saharan Africa into two regions: Africa Eastern and Southern (AFE)
-and Africa Western and Central (AFW). This provides more granular regional analysis
-for governance and development indicators.
-
-The lending categories reflect eligibility for different World Bank financing instruments:
-\itemize{
-\item IDA countries are eligible for concessional financing
-\item IBRD countries can borrow at market-based terms
-\item Blend countries are eligible for both IDA and IBRD financing
-\item High-income countries typically have \code{NA} for lending category
-}
+The World Bank's official classification of economies: income group,
+lending category and region. Uses the updated regional structure that
+splits Sub-Saharan Africa into Africa Eastern and Southern (AFE) and Africa
+Western and Central (AFW). Supplies the region / income-group membership
+\code{\link[=aggregate_to_groups]{aggregate_to_groups()}} uses to build the non-country rows of \code{cgjr_ctf}
+and \code{cgjr_scores}.
 }
 \examples{
-data(wbcountries)
-# View all Africa Eastern and Southern countries
 dplyr::filter(wbcountries, region_code == "AFE")
-
-# View all low-income IDA countries
-dplyr::filter(wbcountries, income_group == "Low income", lending_category == "IDA")
-
-# Count countries by region
 dplyr::count(wbcountries, region)
+}
+\seealso{
+\code{\link[=aggregate_to_groups]{aggregate_to_groups()}}, \code{\link[=join_wb_classifications]{join_wb_classifications()}}
 }
 \keyword{datasets}

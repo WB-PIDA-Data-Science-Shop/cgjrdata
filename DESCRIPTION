@@ -6,22 +6,28 @@ Authors@R:
 Description: Pulls, processes and packages the indicators that make up the
     World Bank Country Jobs and Growth Report (CGJR) analytical framework.
     Every indicator's placement in the taxonomy lives in a single crosswalk
-    table (cgjr_crosswalk), validated against cliaretl's own eligibility
-    flags at build time. Provides lazyloaded objects for use by the cgjrapp
-    Shiny dashboard including rawdata_list (raw source panels), ctfdata_list
-    (Closeness-to-Frontier dynamic scores with subcluster score columns),
-    metadata_tbl (variable catalogue), institutional_averages_tbl (cluster
-    and overall aggregated scores), and region / income-group aggregates.
+    table (cgjr_crosswalk), annotated and validated against cliaretl's own
+    eligibility flags at build time. Provides lazyloaded objects for use by
+    the cgjrapp Shiny dashboard: cgjr_taxonomy and the annotated
+    cgjr_crosswalk, plus three long tidy tibbles - cgjr_ctf
+    (Closeness-to-Frontier values at indicator grain, dynamic and static),
+    cgjr_scores (equal-weight rollup scores at subcluster, sub-subcluster,
+    cluster and overall grain), and cgjr_raw (raw source values) - cgjr_ctf
+    and cgjr_scores carrying unit-level (country / region / income group)
+    columns, plus wbcountries (World Bank country classifications).
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Imports:
     cliaretl,
-    dplyr,
+    dplyr (>= 1.1.0),
     purrr,
-    tibble
+    stats,
+    tibble,
+    tidyr
 Suggests:
+    readr,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 Depends: 

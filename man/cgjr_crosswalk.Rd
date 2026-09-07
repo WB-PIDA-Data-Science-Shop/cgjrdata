@@ -3,50 +3,61 @@
 \docType{data}
 \name{cgjr_crosswalk}
 \alias{cgjr_crosswalk}
-\title{CGJR taxonomy — indicator crosswalk}
+\title{CGJR taxonomy - annotated indicator crosswalk}
 \format{
-A tibble with one row per crosswalk assignment and the columns:
+A tibble with one row per crosswalk assignment. Columns, by source:
 \describe{
-\item{\code{cluster}, \code{subcluster}, \code{sub_subcluster}}{snake_case taxonomy
-keys (join keys into \code{cgjr_taxonomy}). \code{sub_subcluster} is \code{NA} outside
-Public Financial Management.}
-\item{\code{indicator_num}}{Indicator's position within its leaf node.}
-\item{\code{indicator}}{Human-readable indicator name as specified by the team.}
-\item{\code{source}}{Data source as stated in the taxonomy specification.}
-\item{\code{variable}}{Resolved \code{cliaretl} variable code, or \code{NA} if unresolved.}
-\item{\code{status}}{Editor's judgement: \code{"ok"} (code confirmed), \code{"verify"}
-(code assigned but a caveat in \code{note} remains), or \code{"unresolved"} (no
-code — \code{variable} is \code{NA}). Distinct from
-\code{validate_crosswalk()$check}, which is computed against \code{cliaretl}.}
-\item{\code{note}}{Free-text caveat: how the code was resolved, an outstanding
-check, or why a row is unresolved.}
+\item{CSV}{\code{cluster}, \code{subcluster}, \code{sub_subcluster} (snake_case taxonomy
+keys; \code{sub_subcluster} is \code{NA} outside Public Financial Management),
+\code{indicator_num} (position within the leaf), \code{indicator} (human name),
+\code{source} (source as stated in the specification), \code{variable} (the
+\code{cliaretl} code, or \code{NA} if unresolved), \code{note} (free-text caveat).}
+\item{derived}{\code{leaf} = \code{dplyr::coalesce(sub_subcluster, subcluster)}.}
+\item{join to \code{cgjr_taxonomy}}{\code{cluster_num}, \code{cluster_name},
+\code{subcluster_num}, \code{subcluster_name}, \code{sub_subcluster_num},
+\code{sub_subcluster_name}.}
+\item{join to \link[cliaretl:db_variables_final]{cliaretl::db_variables_final}}{\code{var_name}, \code{var_level},
+\code{family_var}, \code{family_name}, \code{family_order}, \code{processing},
+\code{description}, \code{description_short}, \code{etl_source}, \code{benchmarked_ctf},
+\code{benchmark_dynamic_indicator}, \code{benchmark_dynamic_family_aggregate},
+\code{benchmark_static_family_aggregate_download} - all \code{NA} for unresolved
+rows.}
+\item{eligibility flags (\code{\link[=classify_crosswalk]{classify_crosswalk()}})}{\code{in_cliaretl},
+\code{in_dynamic_panel}, \code{in_static_panel}, \code{dynamic_eligible}
+(\code{in_dynamic_panel} and \code{benchmark_dynamic_indicator == "Yes"}),
+\code{static_eligible} (\code{in_static_panel}), \code{cliaretl_status}
+(\code{"resolved"} / \code{"unresolved"} / \code{"not_in_cliaretl"}).}
 }
 }
 \source{
-\verb{data-raw/source/00b-cgjr-taxonomy-crosswalk.R}
+\code{data-raw/input/cgjr_crosswalk.csv} + \code{cgjr_taxonomy} +
+\link[cliaretl:db_variables_final]{cliaretl::db_variables_final}, via
+\verb{data-raw/source/00b-cgjr-taxonomy-crosswalk.R}.
 }
 \usage{
 cgjr_crosswalk
 }
 \description{
 The single source of truth for the CGJR taxonomy: one row per
-(indicator × leaf node) assignment. Maintained as a human-editable CSV,
-\code{data-raw/crosswalk/cgjr_crosswalk.csv} (edit in a spreadsheet; the build
-reads it, checks its structure with \code{\link[=check_crosswalk_schema]{check_crosswalk_schema()}}, and
-validates the codes with \code{\link[=validate_crosswalk]{validate_crosswalk()}}). Every \code{variable} is
-resolved against live \link[cliaretl:db_variables_final]{cliaretl::db_variables_final} text — codes are never
-guessed. Indicators the team specified but for which no \code{cliaretl} code
-could be confirmed are kept with \code{variable = NA} so the table stays a
-complete record of the taxonomy; the build functions drop these rows and
-\code{\link[=validate_crosswalk]{validate_crosswalk()}} reports them.
+(indicator x leaf node) assignment. Maintained as a human-editable CSV,
+\code{data-raw/input/cgjr_crosswalk.csv} (edit in a spreadsheet; the build reads
+it, checks its structure with \code{\link[=check_crosswalk_schema]{check_crosswalk_schema()}}, annotates it with
+\code{\link[=build_crosswalk]{build_crosswalk()}}, and reports eligibility gaps with
+\code{\link[=validate_crosswalk]{validate_crosswalk()}}).
+
+Every CSV row is kept, including the handful the team specified but for
+which no \code{cliaretl} code has been confirmed (\code{variable = NA},
+\code{cliaretl_status == "unresolved"}) - so the table stays a complete record
+of the taxonomy. \code{cgjr_ctf} / \code{cgjr_raw} simply produce no rows for those.
+This object absorbs what used to be a separate \code{metadata_tbl}; it is the
+single per-(indicator x leaf) reference.
 
 An indicator may appear under a subcluster that is \strong{not} its \code{cliaretl}
-\code{family_name} (e.g. the Digital Citizen Engagement Index sits in
-Transparency and Accountability). This is expected — the crosswalk, not
-\code{cliaretl}'s family column, defines the taxonomy.
+\code{family_name} - the crosswalk, not \code{cliaretl}'s family column, defines the
+taxonomy.
 }
 \seealso{
-\code{cgjr_taxonomy}, \code{\link[=validate_crosswalk]{validate_crosswalk()}}, \code{\link[=build_ctfdata_list]{build_ctfdata_list()}},
-\code{\link[=build_rawdata_list]{build_rawdata_list()}}, \code{\link[=build_metadata_tbl]{build_metadata_tbl()}}
+\code{cgjr_taxonomy}, \code{\link[=build_crosswalk]{build_crosswalk()}}, \code{\link[=classify_crosswalk]{classify_crosswalk()}},
+\code{\link[=validate_crosswalk]{validate_crosswalk()}}, \code{\link[=build_ctf_tbl]{build_ctf_tbl()}}, \code{\link[=build_raw_tbl]{build_raw_tbl()}}
 }
 \keyword{datasets}
