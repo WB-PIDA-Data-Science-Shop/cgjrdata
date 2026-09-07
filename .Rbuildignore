@@ -12,3 +12,5 @@
 ^PLAN\.md$
 ^reconfiguration\.md$
 ^\.vscode$
+^\.Renviron$
+^\.Rprofile$

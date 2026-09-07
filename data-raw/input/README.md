@@ -8,15 +8,14 @@ dates, strips leading zeros, and re-encodes text on save).
 After editing, from the package root:
 
 ```r
-source("analysis/00-build_all_datasets.r")   # re-reads the CSVs, validates, rebuilds cgjr_* objects
-source("analysis/01-combine-lazyload.R")      # propagates into rawdata_list / ctfdata_list / ...
+source("analysis/00-build_all_datasets.r")   # re-reads the CSVs, validates, rebuilds cgjr_taxonomy / cgjr_crosswalk
+source("analysis/01-build-tidy-data.R")       # rebuilds cgjr_ctf / cgjr_scores / cgjr_raw
 devtools::document(); devtools::check()
 ```
 
 `00b` will **stop** on a structural problem (`check_crosswalk_schema()`) and
-**warn**, row by row, on any code that fails `cliaretl`'s eligibility flags
-(`validate_crosswalk()`), writing a full report to
-`data-raw/output/cgjr_crosswalk_validation.csv`.
+**warn**, row by row, on any indicator that will contribute no CTF data
+(`validate_crosswalk()` — unresolved, not in `cliaretl`, or in no CTF panel).
 
 ---
 
@@ -51,7 +50,10 @@ row. Public Financial Management contributes 4 leaf rows, not 1.
 | `variable` | the `cliaretl` variable code. **Blank** if no code has been confirmed. Never guess — leave blank. |
 | `note` | free text: how the code was resolved, what still needs checking, or why it is unresolved. Commas/quotes are fine (standard CSV quoting). Keep it to one line. |
 
-The build computes a machine verdict per row
-(`validate_crosswalk()$check`: `ok` / `not_family_aggregate_eligible` /
-`not_dynamic_eligible` / `not_in_catalogue` / `unresolved`) against live
-`cliaretl`, and carries it into `metadata_tbl`.
+`build_crosswalk()` annotates each row against live `cliaretl`: taxonomy
+names/numbers, catalogue metadata (`var_name`, `description`, `family_var`,
+`benchmark_dynamic_indicator`, …), and eligibility flags (`in_dynamic_panel`,
+`in_static_panel`, `dynamic_eligible`, `static_eligible`, `cliaretl_status`).
+`validate_crosswalk()` prints a summary and warns on any row that will
+contribute no CTF data. The annotated table *is* `cgjr_crosswalk` — there is
+no separate `metadata_tbl`.

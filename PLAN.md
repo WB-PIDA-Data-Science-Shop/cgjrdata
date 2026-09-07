@@ -4,10 +4,10 @@ Rebuild `cgjrdata` so it ships **long tidy tibbles** for `cgjrapp` instead of
 nested lists. The two editable CSVs stay the source of truth; everything
 downstream is regenerated.
 
-Status: package scrubbed (branch `rewrite-tidy-tibble`, commit `2ec0d03`).
-Surviving code: `R/extract_cliar_data.R`, `R/zzz.R`, `data-raw/source/00a`,
-`data-raw/source/00b` (stub — rewritten in Phase 1). Surviving data:
-`cgjr_taxonomy`, `cgjr_crosswalk`, `wbcountries`.
+Status: **complete** (branch `rewrite-tidy-tibble`). All 6 phases done; the
+package ships the 6 objects below, `devtools::check()` is 0/0/0, and
+`qcheck/qa-report.md` audits the result against `cliaretl` + `cliarappak`.
+Phases 1-5 + `qcheck/` are in commit `ad01fed`; phase-6 docs followed.
 
 ---
 

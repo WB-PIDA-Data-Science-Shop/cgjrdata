@@ -11,10 +11,10 @@ Description: Pulls, processes and packages the indicators that make up the
     the cgjrapp Shiny dashboard: cgjr_taxonomy and the annotated
     cgjr_crosswalk, plus three long tidy tibbles - cgjr_ctf
     (Closeness-to-Frontier values at indicator grain, dynamic and static),
-    cgjr_scores (equal-weight rollup scores at leaf / subcluster / cluster /
-    overall grain), and cgjr_raw (raw source values) - each carrying
-    unit-level (country / region / income group) columns, plus wbcountries
-    (World Bank country classifications).
+    cgjr_scores (equal-weight rollup scores at subcluster, sub-subcluster,
+    cluster and overall grain), and cgjr_raw (raw source values) - cgjr_ctf
+    and cgjr_scores carrying unit-level (country / region / income group)
+    columns, plus wbcountries (World Bank country classifications).
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
