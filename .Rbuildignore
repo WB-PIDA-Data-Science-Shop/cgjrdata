@@ -5,8 +5,10 @@
 ^LICENSE\.md$
 ^data-raw$
 ^analysis$
+^qcheck$
 ^copilot_logs$
 ^\.github$
 ^README\.Rmd$
+^PLAN\.md$
 ^reconfiguration\.md$
 ^\.vscode$

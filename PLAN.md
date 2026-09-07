@@ -50,12 +50,12 @@ metadata + eligibility flags.
 | `leaf` | derived: `coalesce(sub_subcluster, subcluster)` — unique per schema |
 | `cluster_num`, `cluster_name`, `subcluster_num`, `subcluster_name`, `sub_subcluster_num`, `sub_subcluster_name` | join to `cgjr_taxonomy` |
 | `var_name`, `description`, `description_short`, `family_name`, `etl_source`, `benchmarked_ctf`, `benchmark_dynamic_indicator`, `benchmark_dynamic_family_aggregate`, `benchmark_static_family_aggregate_download`, … | join to `cliaretl::db_variables_final` (`NA` for unresolved rows) |
-| `in_catalogue` | `variable %in% db_variables_final$variable` |
+| `in_cliaretl` | `variable %in% db_variables_final$variable` |
 | `in_dynamic_panel` | `variable %in% names(closeness_to_frontier_dynamic)` |
 | `in_static_panel` | `variable %in% names(closeness_to_frontier_static)` |
 | `dynamic_eligible` | `in_dynamic_panel & benchmark_dynamic_indicator == "Yes"` |
 | `static_eligible` | `in_static_panel` (no `benchmark_static_indicator` flag exists in `db_variables_final`; panel membership *is* the eligibility) |
-| `cliaretl_status` | `"resolved"` / `"unresolved"` (variable NA) / `"not_in_catalogue"` |
+| `cliaretl_status` | `"resolved"` / `"unresolved"` (variable NA) / `"not_in_cliaretl"` (variable set, absent from `db_variables_final`) |
 
 ### `cgjr_ctf` — long, indicator-grain CTF values
 One row per **unit × year × ctf_type × leaf × indicator**.
@@ -85,53 +85,101 @@ One row per **unit × year × ctf_type × node**.
 | column | notes |
 |---|---|
 | `unit_level`, `unit_code`, `unit_name`, `year`, `ctf_type` | as `cgjr_ctf` |
-| `node_level` | `"leaf"` / `"subcluster"` / `"cluster"` / `"overall"` |
-| `node` | operative key: leaf key / subcluster key / cluster key / `"overall"` |
+| `node_level` | `"subcluster"` / `"sub_subcluster"` / `"cluster"` / `"overall"` — **real taxonomy tiers**, matching the taxonomy's own column names. `"sub_subcluster"` occurs only under Public Financial Management. |
+| `node` | operative key: subcluster key / sub_subcluster key / cluster key / `"overall"` |
 | `cluster`, `subcluster`, `sub_subcluster` | ancestry, filled to the node's depth, `NA` deeper (`overall` → all `NA`) |
 | `score` | numeric 0–1 |
-| `n_inputs` | count of immediate children (indicators for leaf; leaves for subcluster; subclusters for cluster; clusters for overall) |
+| `n_inputs` | count of immediate children (indicators for a finest-grain node; sub_subclusters for PFM's subcluster row; subclusters for cluster; clusters for overall) |
 | `n_inputs_obs` | count of those with a non-`NA` value for this row |
 
 - Country rows: order-ii rollup (§3).
 - Region / income rows: `agg()` (median) across the group's countries of each
   node's country-level `score`.
-- For the 10 non-PFM subclusters the `leaf` row and the `subcluster` row are
-  numerically identical — kept both so the app can always query
-  `node_level == "subcluster"`.
+- **No stored "is this the finest grain" column.** It's fully derivable —
+  either from `taxonomy` (a subcluster is branching iff it has a non-`NA`
+  `sub_subcluster` row) or from `cgjr_scores` alone:
+  ```r
+  branching <- unique(scores$subcluster[scores$node_level == "sub_subcluster"])
+  finest <- scores[scores$node_level %in% c("subcluster", "sub_subcluster") &
+                   !(scores$node_level == "subcluster" & scores$subcluster %in% branching), ]
+  ```
+  Storing it would just be a second copy of a fact `taxonomy` already owns —
+  the same reasoning behind keeping `cgjr_ctf`/`cgjr_raw` on snake taxonomy
+  keys only rather than also carrying denormalised names (Q2).
+- **Revision history (2026-09-04, superseding the original `"leaf"`
+  design):** the original plan gave every node a `node_level == "leaf"` row
+  in addition to its real-tier row, so the 10 non-PFM subclusters produced
+  two numerically identical rows differing only in that label — conflating
+  "which taxonomy tier is this" with "is this the finest grain" into one
+  overloaded value, and risking a consumer double-counting those 10
+  subclusters if it grouped/plotted by `node` without also filtering
+  `node_level`. First replaced with real tier names + a stored `is_leaf`
+  flag; then `is_leaf` itself was dropped as redundant (above) — no
+  duplicate rows, no stored derived column, same query power via the
+  two-line filter.
 
 ### `cgjr_raw` — long, raw source values
-One row per **unit × year × leaf × indicator** (no `ctf_type` — raw has none).
+One row per **country × year × leaf × indicator** (no `ctf_type` — raw has
+none; **country grain only** — no region / income rows).
 
 Same columns as `cgjr_ctf` minus `ctf_type`, with `value` instead of `ctf`.
-Country rows from `extract_cliar_data(type = "raw")`; group rows via the same
-`agg()`. Raw units are heterogeneous (indices, %, counts) — group aggregates
-are provided for convenience; document the caveat.
+Country rows from `extract_cliar_data(type = "raw")`. **No group aggregation:**
+raw values are for display / download in `cgjrapp`, never benchmarking, and the
+units are heterogeneous (indices, %, counts) — a regional median of them is
+meaningless. `unit_level` is always `"country"` (kept for schema parity).
+(Decision Q5, 2026-09-03.)
 
 ---
 
 ## 3. The rollup (order ii, within-country)
 
-For each `unit × year × ctf_type`:
+**The finest grain is scaffolded against `taxonomy` before rolling up.** Some
+leaves have zero cliaretl-eligible indicators for a given (or every)
+`ctf_type` — e.g. three of the four Public Financial Management
+sub-subclusters currently have no crosswalk rows at all, and the fourth
+(`budget_cycle_and_fiscal_planning`) has none for `ctf_type == "dynamic"`.
+Grouping `cgjr_ctf` directly would make those leaves simply never appear —
+indistinguishable from a bug, and violating "every taxonomy leaf appears in
+the finest-grain filter over `cgjr_scores`" (§6). So:
 
 ```
 cgjr_ctf (indicator)
-  │  group_by(unit, year, ctf_type, cluster, subcluster, sub_subcluster, leaf)
+  │  group_by(unit, year, ctf_type, leaf)                      leaf = coalesce(sub_subcluster, subcluster)
   ▼  score = mean(ctf, na.rm = TRUE);  n_inputs = n();  n_inputs_obs = sum(!is.na(ctf))
-LEAF score
-  │  group_by(unit, year, ctf_type, cluster, subcluster)
-  ▼  score = mean(leaf score);  (identity for non-PFM — one leaf per subcluster)
-SUBCLUSTER score
+finest-grain scores actually observed
+  │  cross_join( distinct(unit, year, ctf_type) present in cgjr_ctf,  every taxonomy leaf )
+  │  left_join the observed scores onto that scaffold
+  │  unmatched leaf x unit x year x ctf_type → score = NA, n_inputs = n_inputs_obs = 0L
+  │  (cluster/subcluster/sub_subcluster ancestry comes from `taxonomy`, not from cgjr_ctf)
+▼
+finest grain, complete (every taxonomy leaf x every unit/year/ctf_type present anywhere)
+  │  split by whether the leaf has a sub_subcluster (PFM) or not (everyone else)
+  ├─ no sub_subcluster → emit directly as node_level "subcluster"   (no further rollup — this IS its subcluster; finest-grain)
+  └─ has sub_subcluster → emit as node_level "sub_subcluster"   (finest-grain)
+       │  group_by(unit, year, ctf_type, cluster, subcluster)
+       ▼  score = mean(sub_subcluster score, na.rm = TRUE)
+     PFM's own subcluster row, node_level "subcluster"   (branching aggregate, not finest-grain)
+  │  (both branches' subcluster-tier rows combined)
+  ▼
+SUBCLUSTER-tier rows (11: 10 finest-grain, 1 PFM aggregate)
   │  group_by(unit, year, ctf_type, cluster)
-  ▼  score = mean(subcluster score)
+  ▼  score = mean(subcluster score, na.rm = TRUE)
 CLUSTER score
   │  group_by(unit, year, ctf_type)
-  ▼  score = mean(cluster score)
+  ▼  score = mean(cluster score, na.rm = TRUE)
 OVERALL score
 ```
 
+Once the finest grain is complete, the subcluster / cluster / overall tiers
+need **no further scaffolding** — grouping a complete table naturally yields
+one row per node that has at least one child underneath it, which (by
+construction of `taxonomy`) is every node.
+
 - `mean(..., na.rm = TRUE)`, `NaN → NA` (all children missing).
-- Every stage records `n_inputs` / `n_inputs_obs`.
-- Bind the four levels into one long tibble.
+- Every stage records `n_inputs` / `n_inputs_obs`. At the finest grain, a
+  zero-indicator leaf gets `n_inputs = n_inputs_obs = 0L`, not `NA` — it
+  genuinely has zero children today.
+- Bind all four tiers' rows into one long tibble.
 
 Cross-country group step (order ii): take the **country-level `cgjr_scores`**
 and, for each `group × year × ctf_type × node`, compute `agg(score)` across the
@@ -148,11 +196,11 @@ arithmetically; that is expected and documented.
 | `R/schema.R` | `check_crosswalk_schema(crosswalk, taxonomy)` — structural, `cliaretl`-free, batched `stop()` | old `check_crosswalk_schema` |
 | `R/eligibility.R` | `classify_crosswalk(crosswalk, catalogue, ctf_dynamic, ctf_static)` → per-row flag tibble; `validate_crosswalk(crosswalk, …)` → warn + return classification invisibly | old `.cgjr_classify_crosswalk` / `validate_crosswalk` (extended for static) |
 | `R/crosswalk.R` | `build_crosswalk(crosswalk_csv, taxonomy, catalogue)` → annotated `cgjr_crosswalk`; helper `resolve_leaf()` | old `build_metadata_tbl` |
-| `R/ctf.R` | `build_ctf_tbl(crosswalk, taxonomy, ctf_dynamic, ctf_static, id_cols)` → country-level long `cgjr_ctf` | old `build_ctfdata_list` |
-| `R/raw.R` | `build_raw_tbl(crosswalk, taxonomy, id_cols)` → country-level long `cgjr_raw` | old `build_rawdata_list` |
+| `R/ctf.R` | `build_ctf_tbl(crosswalk, ctf_dynamic, ctf_static, id_cols)` → country-level long `cgjr_ctf` (no `taxonomy` arg — crosswalk carries `leaf` + ancestry) | old `build_ctfdata_list` |
+| `R/raw.R` | `build_raw_tbl(crosswalk, id_cols)` → country-level long `cgjr_raw` (no group step, no `taxonomy` arg) | old `build_rawdata_list` |
 | `R/scores.R` | `roll_up_scores(ctf_tbl, taxonomy)` → country-level long `cgjr_scores` (order-ii rollup) | old `compute_scores.R` (whole file) |
 | `R/aggregate.R` | `aggregate_to_groups(tbl, wbcountries, value_col, agg = stats::median, min_n = 1)` → region + income group rows; helper `join_wb_classifications()` | old `aggregate_groups.R` (whole file) |
-| `R/extract_cliar_data.R` | **keep**; minor: return empty instead of `stop()` when zero variables resolve | — |
+| `R/extract_cliar_data.R` | **keep unchanged**; `build_ctf_tbl` / `build_raw_tbl` guard the zero-variable case at the call site instead | — |
 | `R/zzz.R` | update `globalVariables()` | — |
 | `R/data.R` | roxygen for the 6 shipped objects | old `R/data.R` |
 
@@ -180,14 +228,14 @@ arithmetically; that is expected and documented.
   ```r
   devtools::load_all(); library(dplyr)
 
-  ctf_country   <- build_ctf_tbl(cgjr_crosswalk, cgjr_taxonomy)
-  raw_country   <- build_raw_tbl(cgjr_crosswalk, cgjr_taxonomy)
+  ctf_country   <- build_ctf_tbl(cgjr_crosswalk)
+  raw_country   <- build_raw_tbl(cgjr_crosswalk)
   score_country <- roll_up_scores(ctf_country, cgjr_taxonomy)
 
   agg <- stats::median   # <- switch to `mean` here if needed
 
   cgjr_ctf    <- bind_rows(ctf_country,   aggregate_to_groups(ctf_country,   wbcountries, "ctf",   agg))
-  cgjr_raw    <- bind_rows(raw_country,   aggregate_to_groups(raw_country,   wbcountries, "value", agg))
+  cgjr_raw    <- raw_country   # country grain only — no group aggregation (Q5)
   cgjr_scores <- bind_rows(score_country, aggregate_to_groups(score_country, wbcountries, "score", agg))
 
   usethis::use_data(cgjr_ctf, cgjr_raw, cgjr_scores, overwrite = TRUE)
@@ -201,12 +249,12 @@ arithmetically; that is expected and documented.
 |---|---|
 | `test-extract_cliar_data.R` | **keep** (19 tests, accessor unchanged) |
 | `test-schema.R` | `check_crosswalk_schema` — well-formed pair passes; missing column; leaf path not in taxonomy; dup `indicator_num`; dup `variable`; shipped pair passes |
-| `test-eligibility.R` | `classify_crosswalk` / `validate_crosswalk` on synthetic catalogue + both panels — resolved/unresolved/not-in-catalogue; dynamic-eligible vs static-only; warning fired |
+| `test-eligibility.R` | `classify_crosswalk` / `validate_crosswalk` on synthetic catalogue + both panels — resolved/unresolved/not-in-cliaretl; dynamic-eligible vs static-only; warning fired |
 | `test-crosswalk.R` | `build_crosswalk` — every CSV row survives; `leaf` resolution; annotated columns present; unresolved rows kept with `NA` metadata |
 | `test-ctf.R` | `build_ctf_tbl` — long shape; both `ctf_type`s stacked; only `*_eligible` variables appear; static rows have `year = NA`; ineligible/unresolved produce no rows |
-| `test-scores.R` | `roll_up_scores` — leaf score = mean of indicator CTFs; PFM subcluster = mean of its 4 leaves; non-PFM subcluster == leaf; cluster = mean of subclusters; overall = mean of clusters; `n_inputs` / `n_inputs_obs`; all-`NA` → `NA` not `NaN` |
+| `test-scores.R` | `roll_up_scores` — finest-grain score = mean of indicator CTFs; PFM's subcluster row = mean of its sub_subclusters (a branching aggregate, `node_level` "subcluster"); every plain subcluster reports once at `node_level` "subcluster" (no duplicate row); cluster = mean of subclusters; overall = mean of clusters; `n_inputs` / `n_inputs_obs`; all-`NA` → `NA` not `NaN`; the finest-grain filter recipe |
 | `test-aggregate.R` | `aggregate_to_groups` — median across countries; WB aggregate codes dropped; `agg = mean` switch; `min_n` threshold; order-ii property (group score = median of country scores, not derived from group indicator medians) |
-| `test-integration.R` | guarded on `cliaretl` + built data — 6 objects present; every taxonomy leaf appears in `cgjr_scores`; `unit_level` domain; scores within [0, 1]; no all-`NA` indicator artefacts from a bad join |
+| `test-integration.R` | guarded on `cliaretl` + built data — 6 objects present; every taxonomy leaf appears in the finest-grain filter over `cgjr_scores`; `unit_level` domain; scores within a loose sanity bound (see the CTF-range finding below, real values run to ~1.13, not strictly [0, 1]); no all-`NA` indicator artefacts from a bad join |
 
 ---
 
@@ -240,15 +288,22 @@ arithmetically; that is expected and documented.
 
 ---
 
-## 9. Small questions to settle in-flight
+## 9. Small questions — RESOLVED 2026-09-03
 
-1. **Static `year`** — `NA` (recommended, documented) vs. the snapshot year of
-   the static panel.
-2. **`cgjr_ctf` / `cgjr_raw` width** — snake taxonomy keys only (recommended;
-   app joins `cgjr_taxonomy`) vs. also carrying names/numbers.
-3. **`min_n` for group aggregates** — emit a group value only if ≥ N countries
-   contribute? Default `1`, likely raise to `3`.
-4. **`overall` when clusters are missing** — compute regardless and expose
-   `n_inputs` (recommended) vs. require all 4 clusters present.
-5. **`cgjr_raw` group aggregation** — same `agg` as scores (recommended) vs.
-   force `mean` for raw.
+1. **Static `year`** → **`NA`**, documented. Static panel carries no year.
+2. **`cgjr_ctf` width** → **snake taxonomy keys only**; app joins
+   `cgjr_taxonomy` for names/numbers. Revisit if the app makes this awkward
+   (flagged as pivot-able).
+3. **`min_n` for group aggregates** → **`min_n = 1`** (emit whatever is
+   present). `cliaretl`'s ETL package has *no* cross-country group-aggregation
+   convention — its coverage thresholds (`flag_minimum_coverage`: ≥10 countries
+   in ≥2 years; `flag_country`: ≥100 countries, or ≥50 across all 7 regions)
+   are *indicator-eligibility* flags, already enforced upstream. Region/income
+   medians came from the CLIAR *dashboard*, not the package. The old cgjrdata
+   used a plain `mean` with no minimum. So: keep `min_n = 1` and let the
+   consumer threshold on the `n_inputs` / `n_inputs_obs` counts every group row
+   already carries.
+4. **`overall` when clusters missing** → **always compute**, expose `n_inputs`.
+5. **`cgjr_raw` group aggregation** → **none.** `cgjr_raw` is country-grain
+   only. Raw values are for display / download in `cgjrapp`, not benchmarking;
+   heterogeneous units make a regional median meaningless.
