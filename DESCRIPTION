@@ -18,7 +18,6 @@ Description: Pulls, processes and packages the indicators that make up the
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
 Imports:
     cliaretl,
     dplyr (>= 1.1.0),
@@ -35,3 +34,4 @@ Depends:
 LazyData: true
 Remotes:
     WB-PIDA-Data-Science-Shop/cliaretl
+Config/roxygen2/version: 8.1.0

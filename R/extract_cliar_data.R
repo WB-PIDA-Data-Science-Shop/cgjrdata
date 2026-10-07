@@ -97,12 +97,14 @@ extract_cliar_data <- function(variables = NULL,
 
   # --- raw type -----------------------------------------------------------
   # Map etl_source labels to the corresponding cliaretl raw dataset object.
-  # wb_api covers many indicators; all are stored in d360_efi_data.
+  # wb_api covers many indicators, stored in d360_efi_data; the WJP indicators
+  # now live in their own `wjp` dataset but are still labelled wb_api, so
+  # wb_api columns are drawn from both.
   # PEFA indicators appear in both pefa_assessments and d360_efi_data;
   # we prefer the dedicated pefa_assessments dataset (etl_source == "pefa").
   raw_source_lookup <- list(
     vdem              = cliaretl::vdem_data,
-    wb_api            = cliaretl::d360_efi_data,
+    wb_api            = list(cliaretl::d360_efi_data, cliaretl::wjp),
     wdi               = cliaretl::wdi_indicators,
     pefa              = cliaretl::pefa_assessments,
     fraser            = cliaretl::fraser,
@@ -146,9 +148,17 @@ extract_cliar_data <- function(variables = NULL,
   source_chunks <- fetch_map |>
     dplyr::group_by(etl_source) |>
     dplyr::group_map(function(rows, key) {
-      ds   <- raw_source_lookup[[key$etl_source]]
-      cols <- intersect(c("country_code", "year", rows$variable), names(ds))
-      dplyr::select(ds, dplyr::all_of(cols))
+      sources <- raw_source_lookup[[key$etl_source]]
+      if (inherits(sources, "data.frame")) sources <- list(sources)
+      chunks <- purrr::map(sources, function(ds) {
+        cols <- intersect(rows$variable, names(ds))
+        if (length(cols) == 0) return(NULL)
+        dplyr::select(ds, dplyr::all_of(c("country_code", "year", cols)))
+      })
+      purrr::reduce(
+        purrr::compact(chunks),
+        dplyr::full_join, by = c("country_code", "year")
+      )
     })
 
   result <- purrr::reduce(
