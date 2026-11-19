@@ -3,47 +3,46 @@
 \docType{data}
 \name{cgjr_raw}
 \alias{cgjr_raw}
-\title{CGJR raw source values - long, indicator grain, country only}
+\title{CGJR raw source values - long, country grain}
 \format{
-A tibble, one row per country x year x leaf x indicator - the same
-columns as \code{cgjr_ctf} minus \code{ctf_type} / \code{n_inputs} / \code{n_inputs_obs},
-with \code{value} in place of \code{ctf}:
+A tibble with 11 columns: the columns of \code{cgjr_ctf} without
+\code{ctf_type}, and \code{value} in place of \code{ctf}.
 \describe{
-\item{\code{unit_level}}{always \code{"country"}.}
-\item{\code{unit_code}, \code{unit_name}}{ISO3 code and country name.}
-\item{\code{year}}{Integer calendar year.}
-\item{\code{cluster}, \code{subcluster}, \code{sub_subcluster}, \code{leaf}}{snake_case
-taxonomy keys.}
-\item{\code{indicator}}{Human-readable indicator name.}
-\item{\code{variable}}{The \code{cliaretl} variable code.}
-\item{\code{value}}{Raw source value, in the indicator's own units.}
+\item{\code{unit_level}}{Always \code{"country"}.}
+\item{\code{unit_code}, \code{unit_name}}{ISO3 code and country name, from
+\code{wbcountries}.}
+\item{\code{year}}{Integer year.}
+\item{\code{cluster}, \code{subcluster}, \code{sub_subcluster}, \code{leaf}}{Taxonomy keys.}
+\item{\code{indicator}}{Indicator name, from \code{cgjr_crosswalk}.}
+\item{\code{variable}}{Variable code.}
+\item{\code{value}}{Raw value (double), in the indicator's own units.}
 }
 }
 \source{
-\code{cgjr_crosswalk} + \code{cliaretl} raw source datasets, via
-\code{analysis/01-build-tidy-data.R}.
+\code{cliaretl} source datasets + \code{cgjr_crosswalk}, via \code{data-raw/cgjr.R}.
 }
 \usage{
 cgjr_raw
 }
 \description{
-Long tidy tibble of raw (un-normalised) source values, one row per
-\strong{country x year x leaf x indicator}. Built by \code{\link[=build_raw_tbl]{build_raw_tbl()}}, which
-pulls every resolved crosswalk \code{variable} from its original provider
-dataset via \code{\link[=extract_cliar_data]{extract_cliar_data()}} with \code{type = "raw"}.
+Raw (not rescaled) values of every CGJR indicator, in each source's own
+units, one row per \strong{country x year x variable x leaf}. They are for
+display and download in cgjrapp, never for benchmarking: units differ
+across indicators (indices, percentages, counts), so they are not
+aggregated across countries.
 
-There is \strong{no \code{ctf_type}} (raw has none) and \strong{no group aggregation}: raw
-values are for display / download in \code{cgjrapp}, never benchmarking, and
-their units are heterogeneous (indices, percentages, counts) so a regional
-median of them would be meaningless. \code{unit_level} is always \code{"country"}
-(kept for schema parity with \code{cgjr_ctf}).
-
-Raw coverage is independent of CTF eligibility: a leaf that is empty in
-\code{cgjr_ctf} (e.g. Public Financial Management, SOE governance) can still
-carry raw PEFA / OECD-PMR values here. Variables with no dedicated raw
-source (family aggregates, some static-only codes) are dropped.
+Each variable is read from the \code{cliaretl} dataset named in
+\code{cgjr_crosswalk$raw_dataset}. Only observed values for real countries
+(\code{wbcountries}) are kept: no \code{NA} rows, no World Bank aggregates. Raw
+coverage does not depend on CTF eligibility, so an indicator with no CTF
+values can still have raw values here.
+}
+\examples{
+# Kenya's most recent raw value per indicator on Public Sector HRM
+hrm <- dplyr::filter(cgjr_raw, unit_code == "KEN", leaf == "public_sector_hrm")
+dplyr::slice_max(hrm, year, by = variable)
 }
 \seealso{
-\code{cgjr_ctf}, \code{\link[=build_raw_tbl]{build_raw_tbl()}}, \code{\link[=extract_cliar_data]{extract_cliar_data()}}
+\code{cgjr_ctf}, \code{cgjr_crosswalk}, \code{\link[=locate_raw_variables]{locate_raw_variables()}}
 }
 \keyword{datasets}

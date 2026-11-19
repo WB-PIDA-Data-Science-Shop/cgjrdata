@@ -1,32 +1,28 @@
 Package: cgjrdata
-Title: Data Preparation for the Country Jobs and Growth Report
+Title: Data for the Country Jobs and Growth Report Dashboard
 Version: 0.0.0.9000
 Authors@R: 
     person("Ifeanyi", "Edochie", email = "iedochie@worldbank.org", role = c("aut", "cre"))
-Description: Pulls, processes and packages the indicators that make up the
-    World Bank Country Jobs and Growth Report (CGJR) analytical framework.
-    Every indicator's placement in the taxonomy lives in a single crosswalk
-    table (cgjr_crosswalk), annotated and validated against cliaretl's own
-    eligibility flags at build time. Provides lazyloaded objects for use by
-    the cgjrapp Shiny dashboard: cgjr_taxonomy and the annotated
-    cgjr_crosswalk, plus three long tidy tibbles - cgjr_ctf
-    (Closeness-to-Frontier values at indicator grain, dynamic and static),
-    cgjr_scores (equal-weight rollup scores at subcluster, sub-subcluster,
-    cluster and overall grain), and cgjr_raw (raw source values) - cgjr_ctf
-    and cgjr_scores carrying unit-level (country / region / income group)
-    columns, plus wbcountries (World Bank country classifications).
+Description: Packages the indicators of the World Bank Country Jobs and
+    Growth Report (CGJR) institutional framework for the cgjrapp Shiny
+    dashboard. A hand-edited crosswalk maps each indicator to a leaf of the
+    CGJR taxonomy; the build joins that mapping onto the CLIAR data in
+    cliaretl and ships five lazyloaded tables: cgjr_taxonomy, the annotated
+    cgjr_crosswalk, cgjr_ctf (Closeness-to-Frontier values, dynamic and
+    static, copied unchanged from cliaretl so they match the CLIAR app),
+    cgjr_raw (raw source values) and wbcountries (World Bank country
+    classifications). Also exports the small functions the build uses to
+    check the mapping and reshape the data.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Imports:
-    cliaretl,
+    cli,
     dplyr (>= 1.1.0),
-    purrr,
-    stats,
     tibble,
     tidyr
 Suggests:
-    readr,
+    cliaretl,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 Depends: 

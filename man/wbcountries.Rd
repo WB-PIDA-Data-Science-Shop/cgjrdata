@@ -5,40 +5,38 @@
 \alias{wbcountries}
 \title{World Bank country classifications}
 \format{
-A tibble with 218 rows and 6 variables:
+A tibble with 218 rows and 6 columns:
 \describe{
-\item{\code{economy}}{Full name of the economy or territory.}
-\item{\code{country_code}}{Three-letter ISO3 code.}
+\item{\code{economy}}{Name of the economy or territory.}
+\item{\code{country_code}}{Three-letter ISO3 code, unique.}
 \item{\code{income_group}}{\code{"Low income"}, \code{"Lower middle income"},
-\code{"Upper middle income"}, or \code{"High income"}.}
+\code{"Upper middle income"}, \code{"High income"}, or \code{NA} where the World Bank
+gives none.}
 \item{\code{lending_category}}{\code{"IDA"}, \code{"IBRD"}, \code{"Blend"}, or \code{NA} for
-high-income economies not eligible for lending.}
-\item{\code{region_code}}{\code{AFE}, \code{AFW}, \code{EAP}, \code{ECA}, \code{LAC}, \code{MENAAP}, \code{SAR},
+economies not eligible for lending.}
+\item{\code{region_code}}{\code{AFE}, \code{AFW}, \code{EAP}, \code{ECA}, \code{LAC}, \code{MENAAP}, \code{SAR}
 or \code{NAC}.}
-\item{\code{region}}{Full region name corresponding to \code{region_code}.}
+\item{\code{region}}{Region name for \code{region_code}.}
 }
 }
 \source{
 World Bank Country and Lending Groups Classification (October
 2025), \code{data-raw/input/CLASS_2025_10_07.xlsx}, via
-\verb{data-raw/source/00a-prepare-country-list.R}.
+\code{data-raw/wbcountries.R}.
 }
 \usage{
 wbcountries
 }
 \description{
-The World Bank's official classification of economies: income group,
-lending category and region. Uses the updated regional structure that
-splits Sub-Saharan Africa into Africa Eastern and Southern (AFE) and Africa
-Western and Central (AFW). Supplies the region / income-group membership
-\code{\link[=aggregate_to_groups]{aggregate_to_groups()}} uses to build the non-country rows of \code{cgjr_ctf}
-and \code{cgjr_scores}.
+The World Bank's classification of economies by income group, lending
+category and region, using the regional structure that splits Sub-Saharan
+Africa into Africa Eastern and Southern (AFE) and Africa Western and
+Central (AFW). It defines which codes count as countries in \code{cgjr_ctf} and
+\code{cgjr_raw}, and which countries make up each region and income group when
+cgjrapp compares a country with a group.
 }
 \examples{
-dplyr::filter(wbcountries, region_code == "AFE")
-dplyr::count(wbcountries, region)
-}
-\seealso{
-\code{\link[=aggregate_to_groups]{aggregate_to_groups()}}, \code{\link[=join_wb_classifications]{join_wb_classifications()}}
+# Countries per region
+dplyr::count(wbcountries, region_code)
 }
 \keyword{datasets}

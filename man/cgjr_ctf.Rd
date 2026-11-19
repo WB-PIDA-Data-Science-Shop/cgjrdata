@@ -3,62 +3,60 @@
 \docType{data}
 \name{cgjr_ctf}
 \alias{cgjr_ctf}
-\title{CGJR Closeness-to-Frontier values - long, indicator grain}
+\title{CGJR Closeness-to-Frontier values - long, country grain}
 \format{
-A tibble, one row per unit x year x ctf_type x leaf x indicator:
+A tibble with 12 columns:
 \describe{
-\item{\code{unit_level}}{\code{"country"}, \code{"region"}, or \code{"income_group"}.}
-\item{\code{unit_code}}{ISO3 country code, World Bank \code{region_code} (e.g.
-\code{"AFE"}), or an income-group slug (e.g. \code{"high_income"}).}
-\item{\code{unit_name}}{Country / region / income-group display name.}
-\item{\code{year}}{Integer calendar year for \code{ctf_type == "dynamic"}; \strong{\code{NA}
-for \code{ctf_type == "static"}} (the static panel is a year-less
-snapshot).}
+\item{\code{unit_level}}{Always \code{"country"}.}
+\item{\code{unit_code}}{ISO3 country code.}
+\item{\code{unit_name}}{Country name, from \code{wbcountries$economy}.}
+\item{\code{year}}{Integer year for \code{ctf_type == "dynamic"}; \code{NA} for
+\code{"static"}, which is a single cross-section.}
 \item{\code{ctf_type}}{\code{"dynamic"} or \code{"static"}.}
-\item{\code{cluster}, \code{subcluster}, \code{sub_subcluster}, \code{leaf}}{snake_case
-taxonomy keys (\code{sub_subcluster} is \code{NA} outside Public Financial
-Management; \code{leaf} = \code{coalesce(sub_subcluster, subcluster)}). Join
-\code{cgjr_taxonomy} for numbers / display names.}
-\item{\code{indicator}}{Human-readable indicator name (from \code{cgjr_crosswalk}).}
-\item{\code{variable}}{The \code{cliaretl} variable code.}
-\item{\code{ctf}}{CTF value (numeric, ~\verb{[0, 1]}).}
-\item{\code{n_inputs}, \code{n_inputs_obs}}{\code{NA} on country rows; on region /
-income-group rows, the number of the group's countries present in the
-table and, of those, how many had a non-\code{NA} \code{ctf}.}
+\item{\code{cluster}, \code{subcluster}, \code{sub_subcluster}, \code{leaf}}{Taxonomy keys.
+Join \code{cgjr_taxonomy} for numbers and display names.}
+\item{\code{indicator}}{Indicator name, from \code{cgjr_crosswalk}.}
+\item{\code{variable}}{Variable code.}
+\item{\code{ctf}}{CTF value (double), \code{NA} when missing.}
 }
 
-Region / income-group rows are \code{agg()} (default \link[stats:median]{stats::median}, for CLIAR
-fidelity) across the group's countries of the indicator's country-level
-\code{ctf}, computed independently per row - not derived from any node score.
+The tibble carries an attribute, \code{cliaretl_version}, recording the
+\code{cliaretl} version it was built from.
 }
 \source{
-\code{cgjr_crosswalk} + the \code{cliaretl} CTF panels, via
-\code{analysis/01-build-tidy-data.R}.
+The \code{cliaretl} CTF panels + \code{cgjr_crosswalk}, via \code{data-raw/cgjr.R}.
 }
 \usage{
 cgjr_ctf
 }
 \description{
-Long tidy tibble of Closeness-to-Frontier (CTF) values, one row per
-\strong{unit x year x ctf_type x leaf x indicator}. Higher = closer to best
-observed practice. Built by \code{\link[=build_ctf_tbl]{build_ctf_tbl()}} (country rows, sliced from the
-\code{cliaretl} CTF panels for every \code{dynamic_eligible} / \code{static_eligible}
-crosswalk variable) with region / income-group rows appended by
-\code{\link[=aggregate_to_groups]{aggregate_to_groups()}}.
+Closeness-to-Frontier (CTF) values for every benchmarked CGJR indicator,
+one row per \strong{country x year x ctf_type x variable x leaf}. Higher means
+closer to the best observed performance. Values are copied unchanged from
+\link[cliaretl:closeness_to_frontier_dynamic]{cliaretl::closeness_to_frontier_dynamic} and
+\link[cliaretl:closeness_to_frontier_static]{cliaretl::closeness_to_frontier_static}, so cgjrapp shows exactly what
+the CLIAR app shows for a shared indicator.
 
-CTF windows, direction and indicator eligibility are already enforced
-upstream in \link[cliaretl:closeness_to_frontier_dynamic]{cliaretl::closeness_to_frontier_dynamic} /
-\link[cliaretl:closeness_to_frontier_static]{cliaretl::closeness_to_frontier_static}; this object only slices and
-reshapes. Values are \emph{mostly} in \verb{[0, 1]} but not strictly - a country
-ahead of the reference frontier can exceed 1 (observed range runs to
-~1.13).
+Only variables CLIAR benchmarks in a panel appear for that panel
+(\code{cgjr_crosswalk$in_dynamic} / \code{in_static}), and only real countries
+(\code{wbcountries}): World Bank aggregates are dropped. Region and income-group
+comparisons are made from the member countries, using \code{wbcountries}.
 
-Crosswalk rows that are unresolved, not in \code{cliaretl}, or not eligible for
-a given \code{ctf_type} contribute no rows for that type. A \code{variable} reused
-across two leaves fans out to one row per \verb{(leaf, indicator)}.
+Each panel is complete: every country-year in it has a row for every
+eligible variable, with \code{ctf = NA} where the value is missing. Keep those
+rows; cgjrapp's screen for indicators missing for the base country relies
+on them.
+
+Static values lie in \verb{[0, 1]}. Dynamic values usually do, but \code{cliaretl}
+produces a few just outside at the edges of its window (between about
+-0.11 and 1.13 in 2013 and 2024).
+}
+\examples{
+# Ghana's static CTF on the Degree of Integrity indicators
+dplyr::filter(cgjr_ctf, unit_code == "GHA", ctf_type == "static",
+              leaf == "degree_of_integrity")
 }
 \seealso{
-\code{cgjr_scores}, \code{cgjr_raw}, \code{\link[=build_ctf_tbl]{build_ctf_tbl()}},
-\code{\link[=aggregate_to_groups]{aggregate_to_groups()}}, \link[cliaretl:closeness_to_frontier_dynamic]{cliaretl::closeness_to_frontier_dynamic}
+\code{cgjr_raw}, \code{cgjr_crosswalk}, \code{\link[=pivot_wide_to_long_cgjr]{pivot_wide_to_long_cgjr()}}
 }
 \keyword{datasets}

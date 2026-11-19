@@ -5,42 +5,44 @@
 \alias{cgjr_taxonomy}
 \title{CGJR taxonomy - leaf nodes}
 \format{
-A tibble with one row per leaf node (14 rows) and the columns:
+A tibble with one row per leaf (14 rows) and 9 columns:
 \describe{
-\item{\code{cluster}}{snake_case cluster key: \code{institutional_environment},
-\code{core_governance_functions}, \code{beyond_core_governance_functions},
+\item{\code{cluster}}{Cluster key: \code{institutional_environment},
+\code{core_governance_functions}, \code{beyond_core_governance_functions} or
 \code{context}.}
-\item{\code{cluster_num}}{Cluster number 1-4.}
+\item{\code{cluster_num}}{Cluster number, 1-4 (integer).}
 \item{\code{cluster_name}}{Cluster display name.}
-\item{\code{subcluster}}{snake_case subcluster key.}
-\item{\code{subcluster_num}}{Subcluster number within the cluster.}
+\item{\code{subcluster}}{Subcluster key.}
+\item{\code{subcluster_num}}{Subcluster number within its cluster (integer).}
 \item{\code{subcluster_name}}{Subcluster display name.}
-\item{\code{sub_subcluster}}{snake_case sub-subcluster key, or \code{NA} for every
-leaf except the four Public Financial Management sub-subclusters.}
-\item{\code{sub_subcluster_num}}{Sub-subcluster number, or \code{NA}.}
+\item{\code{sub_subcluster}}{Sub-subcluster key; \code{NA} except for the four
+Public Financial Management leaves.}
+\item{\code{sub_subcluster_num}}{Sub-subcluster number (integer), or \code{NA}.}
 \item{\code{sub_subcluster_name}}{Sub-subcluster display name, or \code{NA}.}
 }
 }
 \source{
-\code{data-raw/input/cgjr_taxonomy.csv} via
-\verb{data-raw/source/00b-cgjr-taxonomy-crosswalk.R}.
+\code{data-raw/input/cgjr_taxonomy.csv}, via \code{data-raw/cgjr.R}.
 }
 \usage{
 cgjr_taxonomy
 }
 \description{
-One row per \strong{leaf node} of the CGJR analytical taxonomy: the finest level
-at which indicators are grouped. For most subclusters the leaf is the
+One row per \strong{leaf} of the CGJR analytical taxonomy: the finest level at
+which indicators are grouped. For most subclusters the leaf is the
 subcluster itself; for Public Financial Management the leaves are its four
-sub-subclusters. The table enumerates the \emph{full} hierarchy, including nodes
-that are intentionally still empty ("coming soon").
+sub-subclusters. The table lists the \emph{full} hierarchy, including leaves
+that have no indicators yet. Row order is display order.
 
-\code{cluster}, \code{subcluster} and \code{sub_subcluster} are snake_case keys - they are
-the join keys used throughout \code{cgjr_ctf}, \code{cgjr_scores} and \code{cgjr_raw}. The
-derived leaf key used by the build is
-\code{dplyr::coalesce(sub_subcluster, subcluster)} (see \code{\link[=resolve_leaf]{resolve_leaf()}}).
+\code{cluster}, \code{subcluster} and \code{sub_subcluster} are snake_case keys used by
+every other CGJR table. A leaf's single key, \code{leaf}, is
+\code{dplyr::coalesce(sub_subcluster, subcluster)} and is unique.
+}
+\examples{
+# Leaves per cluster
+dplyr::count(cgjr_taxonomy, cluster_name)
 }
 \seealso{
-\code{cgjr_crosswalk}, \code{\link[=resolve_leaf]{resolve_leaf()}}, \code{\link[=check_crosswalk_schema]{check_crosswalk_schema()}}
+\code{cgjr_crosswalk} for the indicators on each leaf.
 }
 \keyword{datasets}

@@ -10,177 +10,147 @@
 coverage](https://codecov.io/gh/WB-PIDA-Data-Science-Shop/cgjrdata/graph/badge.svg)](https://app.codecov.io/gh/WB-PIDA-Data-Science-Shop/cgjrdata)
 <!-- badges: end -->
 
-`cgjrdata` is the data-preparation package for the **World Bank Country
-Jobs and Growth Report (CGJR)**. It resolves every CGJR indicator
-against the `cliaretl` source package, slices the Closeness-to-Frontier
-(CTF) panels along the CGJR taxonomy, rolls those values up to node
-scores, and ships everything as **long tidy tibbles** for the `cgjrapp`
-Shiny dashboard.
+`cgjrdata` packages the indicators of the **World Bank Country Jobs and
+Growth Report (CGJR)** institutional framework for the `cgjrapp` Shiny
+dashboard. A hand-edited crosswalk maps each indicator to a leaf of the
+CGJR taxonomy; the build joins that mapping onto the CLIAR data in
+[`cliaretl`](https://github.com/WB-PIDA-Data-Science-Shop/cliaretl) and
+ships the result as long tables.
 
-## Analytical framework
+Closeness-to-Frontier (CTF) values are copied **unchanged** from
+`cliaretl`, and an indicator is benchmarked only where CLIAR benchmarks
+it, so a country’s score on an indicator shared with the CLIAR app is
+identical in both apps. cgjrapp computes every composite score live,
+from the member countries of the selection.
 
-Every indicator’s place in the taxonomy lives in a single crosswalk
-table (`cgjr_crosswalk`), annotated and validated against `cliaretl`’s
-own eligibility flags at build time. The taxonomy has **4 clusters**,
-**11 subclusters** and **14 leaf nodes** (Public Financial Management
-branches into four sub-subclusters; the other 10 subclusters are
-themselves leaves):
-
-| \# | Cluster (key) | Subclusters |
-|----|----|----|
-| 1 | `institutional_environment` | Degree of Integrity, Transparency & Accountability, Justice & Rule of Law |
-| 2 | `core_governance_functions` | Public Financial Management *(→ Budget Cycle & Fiscal Planning, Domestic Revenue Mobilization, Public Procurement, Public Investment Management)*, Public Sector HRM, Digital & Data |
-| 3 | `beyond_core_governance_functions` | Market Regulatory Institutions, Service Delivery, SOE Governance |
-| 4 | `context` | Political Institutions & Social Cohesion, Social Cohesion Norms & Cooperation |
-
-**Current coverage.** Under the shipped `cliaretl`, the four Public
-Financial Management sub-subclusters and SOE Governance have **no
-dynamic-panel indicators** — their `cgjr_scores` dynamic rows carry
-`score = NA`, `n_inputs = 0` (“coming soon”). Budget Cycle & Fiscal
-Planning (24 indicators) and SOE Governance (3) do have static CTF
-coverage.
+The current data were built from `cliaretl` 0.2.6.
 
 ## Installation
 
-`cgjrdata` depends on `cliaretl`, an internal World Bank package on
-GitHub. Install both with:
-
 ``` r
 # install.packages("pak")
-pak::pak("WB-PIDA-Data-Science-Shop/cliaretl")
 pak::pak("WB-PIDA-Data-Science-Shop/cgjrdata")
 ```
 
-You will need a GitHub Personal Access Token with access to the
-`WB-PIDA-Data-Science-Shop` organisation.
+You need a GitHub Personal Access Token with access to the
+`WB-PIDA-Data-Science-Shop` organisation. `cliaretl` is needed only to
+rebuild the data or to run the checks against it; using the shipped data
+does not need it.
 
 ## Shipped objects
 
-`library(cgjrdata)` lazy-loads six objects. Three are inputs /
-reference; three are the long tibbles the dashboard consumes.
-
 | object | grain | rows |
-|----|----|----|
-| `cgjr_taxonomy` | one row per leaf node | 14 |
-| `cgjr_crosswalk` | one row per (indicator × leaf), annotated + validated | ~110 |
-| `wbcountries` | WB country classifications (region, income group) | 218 |
-| `cgjr_ctf` | unit × year × ctf_type × leaf × indicator | ~258k |
-| `cgjr_scores` | unit × year × ctf_type × node (equal-weight rollup) | ~64k |
-| `cgjr_raw` | country × year × leaf × indicator (raw source values) | ~962k |
+|:---|:---|:---|
+| `cgjr_taxonomy` | one row per taxonomy leaf | 14 |
+| `cgjr_crosswalk` | indicator x leaf, annotated against cliaretl | 110 |
+| `cgjr_ctf` | country x year x ctf_type x variable x leaf | 239,112 |
+| `cgjr_raw` | country x year x variable x leaf (observed values only) | 292,633 |
+| `wbcountries` | one row per country: region, income group | 218 |
+
+`cgjr_ctf` and `cgjr_raw` hold **real countries only** (`wbcountries`);
+World Bank aggregates such as `AFE` or `WLD` are dropped. Region and
+income-group comparisons are made from member countries using
+`wbcountries`. `year` is `NA` for static CTF rows.
 
 ``` r
-library(cgjrdata)
-```
-
-### `cgjr_ctf` — Closeness-to-Frontier values, indicator grain
-
-One row per **unit × year × ctf_type × leaf × indicator**. `ctf` is an
-exact slice of `cliaretl::closeness_to_frontier_dynamic` / `_static` —
-no transformation. `unit_level` is `"country"`, `"region"` or
-`"income_group"` (group rows are the `median` across the group’s
-countries). `year` is `NA` for `ctf_type == "static"`.
-
-``` r
-library(dplyr)
+# Kenya's dynamic CTF on the Degree of Integrity indicators
 cgjr_ctf |>
-  filter(unit_level == "country", unit_code == "KEN", ctf_type == "dynamic",
-         leaf == "degree_of_integrity")
+  filter(unit_code == "KEN", ctf_type == "dynamic", leaf == "degree_of_integrity")
 ```
 
-### `cgjr_scores` — equal-weight rollup, node grain
+## Taxonomy and coverage
 
-One row per **unit × year × ctf_type × node**, where `node_level` is a
-real taxonomy tier: `"subcluster"`, `"sub_subcluster"` (Public Financial
-Management only), `"cluster"` or `"overall"`. A leaf score is the
-lenient mean (`na.rm = TRUE`) of its indicators’ `ctf`; each tier above
-is the equal-weight mean of its immediate children. Every row carries
-`n_inputs` and `n_inputs_obs`.
+The taxonomy has 4 clusters, 11 subclusters and 14 leaves: Public
+Financial Management branches into four sub-subclusters, and every other
+subcluster is its own leaf. Indicators per leaf, and how many have
+dynamic CTF, static CTF and raw values:
 
-``` r
-# overall CTF score, all countries, latest year
-cgjr_scores |>
-  filter(unit_level == "country", node_level == "overall", ctf_type == "dynamic",
-         year == max(year))
+| cluster | leaf | indicators | dynamic | static | raw |
+|:---|:---|---:|---:|---:|---:|
+| Institutional Environment | Degree of Integrity | 5 | 5 | 5 | 5 |
+| Institutional Environment | Transparency and Accountability | 5 | 5 | 5 | 5 |
+| Institutional Environment | Justice and Rule of Law | 17 | 16 | 16 | 16 |
+| Efficiency and Effectiveness of Core Governance Functions | Budget Cycle and Fiscal Planning | 24 | 0 | 24 | 24 |
+| Efficiency and Effectiveness of Core Governance Functions | Domestic Revenue Mobilization | 0 | 0 | 0 | 0 |
+| Efficiency and Effectiveness of Core Governance Functions | Public Procurement | 0 | 0 | 0 | 0 |
+| Efficiency and Effectiveness of Core Governance Functions | Public Investment Management (PIM) | 0 | 0 | 0 | 0 |
+| Efficiency and Effectiveness of Core Governance Functions | Public Sector HRM | 5 | 5 | 5 | 5 |
+| Efficiency and Effectiveness of Core Governance Functions | Digital and Data | 5 | 5 | 5 | 5 |
+| Efficiency and Effectiveness beyond Core Governance Functions | Market Regulatory Institutions | 6 | 5 | 6 | 6 |
+| Efficiency and Effectiveness beyond Core Governance Functions | Service Delivery | 11 | 11 | 11 | 11 |
+| Efficiency and Effectiveness beyond Core Governance Functions | State-Owned Enterprises Governance | 6 | 0 | 3 | 3 |
+| Context | Political Institutions and Social Cohesion | 21 | 20 | 21 | 21 |
+| Context | Social Cohesion, Norms and Cooperation | 5 | 5 | 5 | 5 |
 
-# every finest-grain node, regardless of depth
-branching <- unique(cgjr_scores$subcluster[cgjr_scores$node_level == "sub_subcluster"])
-cgjr_scores |>
-  filter(node_level %in% c("subcluster", "sub_subcluster"),
-         !(node_level == "subcluster" & subcluster %in% branching))
-```
+`dynamic` and `static` count the indicators CLIAR benchmarks in that
+panel (see `flag_ctf_eligibility()`). A leaf with no indicators yet has
+zeros.
 
-### `cgjr_raw` — raw source values
+Raw values come from these `cliaretl` datasets:
 
-One row per **country × year × leaf × indicator**, `value` on the
-provider’s native scale (V-Dem 0–1, PMR 0–6, …). No `ctf_type`,
-**country grain only** — raw values are for display / download, never
-benchmarking.
-
-### `cgjr_crosswalk` — the annotated crosswalk
-
-One row per (indicator × leaf), every CSV row kept (including the 4
-currently unresolved). Carries the taxonomy keys/names, `cliaretl`
-catalogue metadata, and the eligibility flags (`in_dynamic_panel`,
-`dynamic_eligible`, `static_eligible`, `cliaretl_status`, …).
-
-``` r
-validate_crosswalk(cgjr_crosswalk)   # re-run the build-time eligibility report
-```
-
-## Exported functions
-
-| function | role |
-|----|----|
-| `check_crosswalk_schema()` | structural check on the two source CSVs (`cliaretl`-free) |
-| `classify_crosswalk()` / `validate_crosswalk()` | per-row `cliaretl` eligibility flags + a warning report |
-| `resolve_leaf()` / `build_crosswalk()` | assemble the annotated `cgjr_crosswalk` |
-| `build_ctf_tbl()` | country-level `cgjr_ctf` from the crosswalk + CTF panels |
-| `build_raw_tbl()` | country-level `cgjr_raw` |
-| `roll_up_scores()` | country-level `cgjr_scores` (order-ii equal-weight rollup) |
-| `aggregate_to_groups()` / `join_wb_classifications()` | add region / income-group rows (median default) |
-| `extract_cliar_data()` | raw / dynamic / static accessor into `cliaretl` |
+| raw_dataset       | indicators |
+|:------------------|-----------:|
+| vdem_data         |         30 |
+| pefa_assessments  |         21 |
+| wjp               |         20 |
+| d360_efi_data     |         13 |
+| wdi_indicators    |          8 |
+| (no variable yet) |          4 |
+| pmr               |          3 |
+| freedom_house     |          2 |
+| spi               |          2 |
+| wbl_data          |          2 |
+| debt_transparency |          1 |
+| gfdb              |          1 |
+| gsod              |          1 |
+| obs               |          1 |
+| press_freedom     |          1 |
 
 ## Rebuilding the data
 
+The two CSVs in `data-raw/input/` are the only source of truth for the
+taxonomy; see `data-raw/input/README.md`. After editing them, or after
+updating `cliaretl`, run from the package root:
+
 ``` r
-# 1. wbcountries + cgjr_taxonomy + cgjr_crosswalk (reads the two editable CSVs)
-source("analysis/00-build_all_datasets.r")
-
-# 2. cgjr_ctf + cgjr_scores + cgjr_raw
-source("analysis/01-build-tidy-data.R")
-
-# 3. docs
-devtools::document()
+source("data-raw/cgjr.R")   # rebuilds cgjr_taxonomy, cgjr_crosswalk, cgjr_ctf, cgjr_raw
+devtools::test()            # data contract tests: every value equals cliaretl's
 ```
 
-The two editable CSVs in `data-raw/input/` (`cgjr_taxonomy.csv`,
-`cgjr_crosswalk.csv`) are the only source of truth for the taxonomy —
-see `data-raw/input/README.md`.
+The build prints a checklist, a green ✔ for each check that passes:
 
-## Quality assurance
+    ✔ No duplicate taxonomy leaves.
+    ✔ Every crosswalk row sits on a taxonomy leaf.
+    ✔ Every variable is in the cliaretl catalogue.
+    ✔ Every variable has CTF values in at least one panel.
+    ✔ Every variable was found in a raw dataset.
+    ✔ No duplicate observations on ctf_type / unit_code / year / variable / leaf.
+    ✔ No duplicate observations on unit_code / year / variable / leaf.
 
-`qcheck/qa-report.Rmd` is a reproducible audit of the six shipped
-objects against `cliaretl` and the `cliarappak` methodology
-(`qcheck/qa-report.md` is the knit output). Regenerate with
-`rmarkdown::render("qcheck/qa-report.Rmd")`.
+A duplicate leaf, a crosswalk row off the taxonomy or a duplicate
+observation stops the build (red ✖). A variable outside the `cliaretl`
+catalogue, without CTF values, or found in no raw dataset only warns
+(!), because an indicator may come from outside `cliaretl`.
 
-## Data sources
+`data-raw/wbcountries.R` rebuilds `wbcountries`; run it only when the
+World Bank classification file changes.
 
-| Source | Coverage | Key indicators |
-|----|----|----|
-| V-Dem | 1990–2024 | Democracy, corruption, rule of law |
-| WJP Rule of Law Index | multiple years | Rule of law, civil / criminal justice |
-| PEFA | 2015–2025 | Public financial management (raw + static) |
-| OECD PMR / EPL | 2018, 2023 | Product-market / SOE regulation, employment protection |
-| Freedom House / RSF Press Freedom | multiple years | Political & civil rights |
-| Bertelsmann Transformation Index | multiple years | Governance, competition, fiscal |
-| WDI / WBL / GTMI / SPI | multiple years | Service delivery, digital, gender |
+## Exported functions
+
+The build steps, exported so they are documented and tested:
+
+| function | answers |
+|----|----|
+| `check_cgjr_mapping()` | Is the crosswalk consistent with the taxonomy and `cliaretl`? |
+| `flag_ctf_eligibility()` | Does CLIAR benchmark this variable, dynamic and static? |
+| `locate_raw_variables()` | Which dataset holds this variable’s raw values? |
+| `pivot_wide_to_long_cgjr()` | Wide country table to CGJR’s long, labelled form. |
+| `check_duplicate_obs()` | Does any observation appear twice? |
 
 ## Related packages
 
-- [`cliaretl`](https://github.com/WB-PIDA-Data-Science-Shop/cliaretl) —
-  upstream ETL / source-data package
-- [`cliarappak`](https://github.com/WB-PIDA-Data-Science-Shop/cliarappak)
-  — the CLIAR benchmarking dashboard (methodology reference)
-- `cgjrapp` — the CGJR Shiny dashboard consuming this package *(in
-  development)*
+- [`cliaretl`](https://github.com/WB-PIDA-Data-Science-Shop/cliaretl):
+  the upstream CLIAR data
+- [`cliarappak`](https://github.com/WB-PIDA-Data-Science-Shop/cliarappak):
+  the CLIAR benchmarking dashboard
+- `cgjrapp`: the CGJR dashboard that uses this package

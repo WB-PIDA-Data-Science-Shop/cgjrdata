@@ -8,14 +8,18 @@ dates, strips leading zeros, and re-encodes text on save).
 After editing, from the package root:
 
 ```r
-source("analysis/00-build_all_datasets.r")   # re-reads the CSVs, validates, rebuilds cgjr_taxonomy / cgjr_crosswalk
-source("analysis/01-build-tidy-data.R")       # rebuilds cgjr_ctf / cgjr_scores / cgjr_raw
-devtools::document(); devtools::check()
+source("data-raw/cgjr.R")   # rebuilds cgjr_taxonomy, cgjr_crosswalk, cgjr_ctf, cgjr_raw
+devtools::test()            # the data contract tests in tests/testthat/test-data.R
 ```
 
-`00b` will **stop** on a structural problem (`check_crosswalk_schema()`) and
-**warn**, row by row, on any indicator that will contribute no CTF data
-(`validate_crosswalk()` — unresolved, not in `cliaretl`, or in no CTF panel).
+The build prints a checklist. `check_cgjr_mapping()` **stops** (red ✖) on a
+duplicate taxonomy leaf or a crosswalk row whose leaf is not in the taxonomy,
+and **warns** (!) on variables that are not in the `cliaretl` catalogue or
+have no CTF values CLIAR benchmarks. `locate_raw_variables()` warns on
+variables found in no raw dataset. Everything that passes gets a green ✔.
+
+`data-raw/wbcountries.R` rebuilds `wbcountries`; run it only when the World
+Bank classification file (`CLASS_*.xlsx`) changes.
 
 ---
 
@@ -47,13 +51,11 @@ row. Public Financial Management contributes 4 leaf rows, not 1.
 | `indicator_num` | position within the leaf; unique within the leaf |
 | `indicator` | human-readable name (as the methodology team specifies it) |
 | `source` | stated data source (free text, e.g. `WJP`, `PEFA PI-5`) |
-| `variable` | the `cliaretl` variable code. **Blank** if no code has been confirmed. Never guess — leave blank. |
+| `variable` | the variable code. **Blank** if no code has been confirmed. Never guess — leave blank. A variable may appear on more than one leaf. |
 | `note` | free text: how the code was resolved, what still needs checking, or why it is unresolved. Commas/quotes are fine (standard CSV quoting). Keep it to one line. |
 
-`build_crosswalk()` annotates each row against live `cliaretl`: taxonomy
-names/numbers, catalogue metadata (`var_name`, `description`, `family_var`,
-`benchmark_dynamic_indicator`, …), and eligibility flags (`in_dynamic_panel`,
-`in_static_panel`, `dynamic_eligible`, `static_eligible`, `cliaretl_status`).
-`validate_crosswalk()` prints a summary and warns on any row that will
-contribute no CTF data. The annotated table *is* `cgjr_crosswalk` — there is
-no separate `metadata_tbl`.
+The build adds to each row: `leaf`, the taxonomy names and numbers, the
+`cliaretl` `description` / `description_short`, `in_dynamic` / `in_static`
+(CLIAR benchmarks the variable in that CTF panel — see
+`flag_ctf_eligibility()`) and `raw_dataset` (the `cliaretl` dataset holding
+its raw values). The result is the shipped `cgjr_crosswalk`.

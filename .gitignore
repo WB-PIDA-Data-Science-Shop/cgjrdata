@@ -10,14 +10,8 @@ renv/library/
 renv/staging/
 
 
-# generated build artefacts — regenerate with analysis/00-build_all_datasets.r
-data-raw/output/
-
 # editor-local settings
 .vscode/
 
 /.quarto/
 **/*.quarto_ipynb
-
-# qcheck: keep the .Rmd and knit .md, not the rendered HTML
-qcheck/*.html
